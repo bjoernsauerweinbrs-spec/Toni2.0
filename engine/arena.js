@@ -1,199 +1,187 @@
-// engine/arena.js
-// Arena: Canvas-basiertes Taktik-Board mit DPR-scaling, defensive checks und Event-Subscription
+// ============================================
+// TONI 2.0 – ARENA ENGINE
+// Spielfeld, Spieler, Drag & Drop, Rendering
+// ============================================
 
-window.arena = {
+import { ToniEvents } from "../logic/event-bus.js";
+import { ToniDB } from "../logic/database.js";
+
+export const arena = {
     canvas: null,
     ctx: null,
-    players: [],
 
-    init(id) {
-        this.canvas = document.getElementById(id);
+    players: {}, // { id: { x, y, color } }
+
+    dragging: null,
+    offsetX: 0,
+    offsetY: 0,
+
+    // ----------------------------------------
+    // Initialisierung
+    // ----------------------------------------
+    init(canvasId) {
+        this.canvas = document.getElementById(canvasId);
         if (!this.canvas) {
-            console.error('[Arena] Canvas not found:', id);
+            console.error("[ARENA] Canvas nicht gefunden");
             return;
         }
 
-        this.ctx = this.canvas.getContext('2d');
-        if (!this.ctx) {
-            console.error('[Arena] 2D context not available');
-            return;
-        }
+        this.ctx = this.canvas.getContext("2d");
 
-        // Subscribe to player updates early so we don't miss the initial emit
-        if (window.ToniEvents && typeof window.ToniEvents.on === 'function') {
-            window.ToniEvents.on('players:updated', (d) => {
-                this.players = Array.isArray(d) ? d : [];
-                this.render();
-            });
-        }
+        this._resizeCanvas();
+        window.addEventListener("resize", () => this._resizeCanvas());
 
-        // Initial snapshot from DB
-        try {
-            this.players = window.ToniDB && typeof window.ToniDB.getPlayers === 'function'
-                ? window.ToniDB.getPlayers()
-                : [];
-        } catch (e) {
-            console.error('[Arena] initial getPlayers failed', e);
-            this.players = [];
-        }
+        this._loadPlayers();
+        this._setupMouseEvents();
 
-        // Setup sizing and listeners
-        this.resize();
-        window.addEventListener('resize', () => this.resize());
-
-        // Initial render
-        this.render();
-        console.log('[Arena] initialized with', this.players.length, 'players');
+        requestAnimationFrame(() => this._render());
+        console.log("%c[TONI 2.0] Arena geladen", "color:#00ff88");
     },
 
-    resize() {
-        if (!this.canvas || !this.ctx) return;
-
-        const parent = this.canvas.parentElement || document.body;
-        const width = parent.clientWidth || window.innerWidth;
-        const height = parent.clientHeight || Math.max(window.innerHeight * 0.6, 400);
-
-        // CSS size
-        this.canvas.style.width = width + 'px';
-        this.canvas.style.height = height + 'px';
-
-        // Backing store size for crisp rendering on high-DPI displays
-        const dpr = window.devicePixelRatio || 1;
-        this.canvas.width = Math.floor(width * dpr);
-        this.canvas.height = Math.floor(height * dpr);
-
-        // Reset transform so drawing coordinates map to CSS pixels
-        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-        // Re-render after resize
-        this.render();
+    // ----------------------------------------
+    // Canvas an Fenster anpassen
+    // ----------------------------------------
+    _resizeCanvas() {
+        this.canvas.width = this.canvas.clientWidth;
+        this.canvas.height = this.canvas.clientHeight;
     },
 
-    render() {
-        if (!this.ctx || !this.canvas) return;
+    // ----------------------------------------
+    // Spieler laden (11+5 Heim, 11 Gegner)
+    // ----------------------------------------
+    _loadPlayers() {
+        const homeStarters = ToniDB.data.squad.home.starters;
+        const homeBench = ToniDB.data.squad.home.bench;
+        const awayStarters = ToniDB.data.squad.away.starters;
 
+        const allPlayers = [
+            ...homeStarters.map(id => ({ id, color: "red" })),
+            ...homeBench.map(id => ({ id, color: "red" })),
+            ...awayStarters.map(id => ({ id, color: "blue" }))
+        ];
+
+        allPlayers.forEach((p, index) => {
+            const savedPos = ToniDB.data.positions[p.id];
+
+            this.players[p.id] = {
+                x: savedPos?.x ?? (100 + (index * 40)),
+                y: savedPos?.y ?? (100 + (index * 20)),
+                color: p.color
+            };
+        });
+    },
+
+    // ----------------------------------------
+    // Maus-Events für Drag & Drop
+    // ----------------------------------------
+    _setupMouseEvents() {
+        this.canvas.addEventListener("mousedown", (e) => this._onDown(e));
+        this.canvas.addEventListener("mousemove", (e) => this._onMove(e));
+        this.canvas.addEventListener("mouseup", () => this._onUp());
+        this.canvas.addEventListener("mouseleave", () => this._onUp());
+    },
+
+    _onDown(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        for (const id in this.players) {
+            const p = this.players[id];
+            const dx = mx - p.x;
+            const dy = my - p.y;
+
+            if (dx * dx + dy * dy < 20 * 20) {
+                this.dragging = id;
+                this.offsetX = dx;
+                this.offsetY = dy;
+                return;
+            }
+        }
+    },
+
+    _onMove(e) {
+        if (!this.dragging) return;
+
+        const rect = this.canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        this.players[this.dragging].x = mx - this.offsetX;
+        this.players[this.dragging].y = my - this.offsetY;
+
+        ToniDB.savePosition(this.dragging, mx - this.offsetX, my - this.offsetY);
+    },
+
+    _onUp() {
+        this.dragging = null;
+    },
+
+    // ----------------------------------------
+    // Spielfeld zeichnen
+    // ----------------------------------------
+    _drawField() {
         const ctx = this.ctx;
-        const w = this.canvas.clientWidth;
-        const h = this.canvas.clientHeight;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
 
-        // Clear
-        ctx.clearRect(0, 0, w, h);
-
-        // Background
-        ctx.fillStyle = "#051205";
+        ctx.fillStyle = "#0b5e20";
         ctx.fillRect(0, 0, w, h);
 
-        // Pitch outline
-        ctx.strokeStyle = "#39FF14";
-        ctx.lineWidth = 2;
-        const pad = 50;
-        ctx.strokeRect(pad, pad, w - pad * 2, h - pad * 2);
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 3;
 
-        // Middle circle
+        ctx.strokeRect(20, 20, w - 40, h - 40);
+
         ctx.beginPath();
-        ctx.arc(w / 2, h / 2, 60, 0, Math.PI * 2);
+        ctx.moveTo(w / 2, 20);
+        ctx.lineTo(w / 2, h - 20);
         ctx.stroke();
 
-        // 16er boxes (example positions)
-        ctx.strokeRect(pad, (h / 2) - 130, 120, 260);
-        ctx.strokeRect(w - pad - 120, (h / 2) - 130, 120, 260);
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2, 80, 0, Math.PI * 2);
+        ctx.stroke();
 
-        // Draw players grouped by team for stable vertical spacing
-        const homePlayers = this.players.filter(p => p.team === 'home');
-        const awayPlayers = this.players.filter(p => p.team === 'away');
+        ctx.strokeRect(20, h / 2 - 100, 120, 200);
+        ctx.strokeRect(w - 140, h / 2 - 100, 120, 200);
 
-        const drawTeam = (teamPlayers, isHome) => {
-            const baseX = isHome ? 150 : w - 150;
-            const maxSpacing = Math.min(60, Math.floor((h - 200) / Math.max(1, teamPlayers.length)));
-            teamPlayers.forEach((p, idx) => {
-                // allow explicit coordinates if provided
-                const x = (typeof p._x === 'number') ? p._x : baseX;
-                const y = (typeof p._y === 'number') ? p._y : (100 + idx * maxSpacing);
-
-                // marker
-                ctx.beginPath();
-                ctx.arc(x, y, 15, 0, Math.PI * 2);
-                ctx.fillStyle = isHome ? "#39FF14" : "#3080FF";
-                ctx.fill();
-
-                // name (truncate if too long)
-                ctx.fillStyle = "#fff";
-                ctx.font = '12px Inter, sans-serif';
-                const name = p.name.length > 18 ? p.name.slice(0, 15) + '…' : p.name;
-                ctx.fillText(name, x - 20, y + 30);
-
-                // presence indicator (small dot)
-                ctx.beginPath();
-                ctx.arc(x + 18, y - 18, 6, 0, Math.PI * 2);
-                ctx.fillStyle = p.isPresent ? '#00ff88' : '#444';
-                ctx.fill();
-
-                // rating badge
-                ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                ctx.fillRect(x - 22, y - 32, 44, 14);
-                ctx.fillStyle = '#fff';
-                ctx.font = '10px Inter, sans-serif';
-                ctx.fillText(String(p.rat || '-'), x - 10, y - 22);
-            });
-        };
-
-        drawTeam(homePlayers, true);
-        drawTeam(awayPlayers, false);
+        ctx.strokeRect(20, h / 2 - 40, 60, 80);
+        ctx.strokeRect(w - 80, h / 2 - 40, 60, 80);
     },
 
-    // Execute tacticalMove objects from ToniCore
-    execute(tacticalMove) {
-        if (!tacticalMove || !tacticalMove.type) return;
-        try {
-            switch (tacticalMove.type) {
-                case 'MOVE_PLAYER':
-                    this._movePlayer(tacticalMove.playerId, tacticalMove.x, tacticalMove.y);
-                    break;
-                case 'SHIFT_LINE':
-                    this._shiftLine(tacticalMove.line, tacticalMove.dx || 0, tacticalMove.dy || 0);
-                    break;
-                default:
-                    console.warn('[Arena] unknown tacticalMove type', tacticalMove.type);
-            }
-            this.render();
-        } catch (e) {
-            console.error('[Arena] execute failed', e);
+    // ----------------------------------------
+    // Spieler zeichnen
+    // ----------------------------------------
+    _drawPlayers() {
+        const ctx = this.ctx;
+
+        for (const id in this.players) {
+            const p = this.players[id];
+
+            ctx.beginPath();
+            ctx.fillStyle = p.color === "red" ? "#ff4444" : "#448aff";
+            ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "white";
+            ctx.font = "12px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(id, p.x, p.y + 4);
         }
     },
 
-    _movePlayer(playerId, x, y) {
-        const p = this.players.find(pl => pl.id === playerId);
-        if (p) {
-            // store custom coordinates for rendering (non-persistent)
-            if (typeof x === 'number' && typeof y === 'number') {
-                p._x = x;
-                p._y = y;
-            } else {
-                delete p._x;
-                delete p._y;
-            }
-        } else {
-            console.warn('[Arena] _movePlayer: player not found', playerId);
-        }
-    },
+    // ----------------------------------------
+    // Render-Loop
+    // ----------------------------------------
+    _render() {
+        this._drawField();
+        this._drawPlayers();
 
-    _shiftLine(lineName, dx, dy) {
-        // Map lineName to player subsets (e.g., 'defense', 'midfield', 'attack')
-        const mapping = {
-            defense: p => ['IV','LV','RV','TW'].includes(p.pos),
-            midfield: p => ['ZM','ZM/OM','DM','OM','LM','RM'].includes(p.pos),
-            attack: p => ['ST','LF','RF','SS'].includes(p.pos)
-        };
-        const predicate = mapping[lineName];
-        if (!predicate) {
-            console.log('[Arena] _shiftLine: unknown line', lineName);
-            return;
-        }
-        this.players.forEach(p => {
-            if (predicate(p)) {
-                p._x = (p._x || (p.team === 'home' ? 150 : this.canvas.clientWidth - 150)) + dx;
-                p._y = (p._y || 100) + dy;
-            }
-        });
+        requestAnimationFrame(() => this._render());
     }
 };
+
+// --------------------------------------------
+// Global verfügbar machen
+// --------------------------------------------
+window.arena = arena;
