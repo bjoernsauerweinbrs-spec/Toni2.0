@@ -1,0 +1,31 @@
+<div id="arena">
+
+  <!-- Toolbar -->
+  <div id="arena-toolbar">
+    <button data-tool="move">Spieler</button>
+    <button data-tool="line">Linie</button>
+    <button data-tool="arrow">Pfeil</button>
+    <button data-tool="delete">Löschen</button>
+    <button data-tool="reset">Reset</button>
+
+    <select id="arena-field-select">
+      <option value="standard">Standardfeld</option>
+      <option value="funino">Funino</option>
+      <option value="halle">Halle</option>
+      <option value="training">Training</option>
+      <option value="f-jugend">F‑Jugend</option>
+    </select>
+  </div>
+
+  <!-- Spielfeld -->
+  <div id="arena-field-wrapper">
+    <div id="arena-field"></div>
+
+    <!-- Layer für Linien -->
+    <div id="arena-lines"></div>
+
+    <!-- Layer für Spieler -->
+    <div id="arena-players"></div>
+  </div>
+
+</div>
