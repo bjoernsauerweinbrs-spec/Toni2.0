@@ -1,102 +1,103 @@
-// logic/llm-gateway.js
-// ToniGateway: versucht lokale Ollama-Instanz, fällt bei Fehlern auf Cloud-Fallback zurück
-// Liefert immer ein normalisiertes Objekt: { text, source, error }
-// Zusätzlich: initCheck() beim Script-Load, das gateway:status emittiert.
+// ============================================
+// TONI 2.0 – HYBRID LLM GATEWAY
+// Ollama (lokal) → OpenAI (Fallback)
+// ============================================
 
-window.ToniGateway = {
-    status: 'unknown', // 'local' | 'cloud' | 'error' | 'unknown'
-    _initChecked: false,
+import { ToniEvents } from "./event-bus.js";
+import { ToniDB } from "./database.js";
 
-    // initial check to determine availability (call on load)
-    async initCheck(timeout = 1500) {
-        if (this._initChecked) return this.status;
-        this._initChecked = true;
-        try {
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
-
-            try {
-                const res = await fetch('http://localhost:11434/api/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: 'gemma', prompt: 'ping', stream: false }),
-                    signal: controller.signal
-                });
-                clearTimeout(id);
-                if (res.ok) {
-                    this.status = 'local';
-                    console.log('[ToniGateway] initCheck: local reachable');
-                } else {
-                    this.status = 'unknown';
-                    console.warn('[ToniGateway] initCheck: local responded with', res.status);
-                }
-            } catch (e) {
-                clearTimeout(id);
-                console.warn('[ToniGateway] initCheck: local unreachable', e && e.name ? e.name : e);
-                this.status = 'unknown';
-            }
-        } catch (e) {
-            console.warn('[ToniGateway] initCheck failed', e);
-            this.status = 'unknown';
-        } finally {
-            try { window.ToniEvents.emit('gateway:status', this.status); } catch (e) { /* ignore */ }
-            return this.status;
-        }
-    },
-
+export const LLMGateway = {
+    // ----------------------------------------
+    // Hauptfunktion: Anfrage an KI
+    // ----------------------------------------
     async ask(prompt) {
-        if (!this._initChecked) {
-            await this.initCheck();
+        // 1) Versuche zuerst OLLAMA
+        const ollamaResponse = await this._askOllama(prompt);
+
+        if (ollamaResponse) {
+            ToniDB.setGatewayStatus("ollama");
+            ToniEvents.emit("gateway:status", "ollama");
+            return ollamaResponse;
         }
 
+        // 2) Fallback: OPENAI
+        const openaiResponse = await this._askOpenAI(prompt);
+
+        if (openaiResponse) {
+            ToniDB.setGatewayStatus("openai");
+            ToniEvents.emit("gateway:status", "openai");
+            return openaiResponse;
+        }
+
+        // 3) Beide nicht erreichbar
+        ToniDB.setGatewayStatus("offline");
+        ToniEvents.emit("gateway:status", "offline");
+
+        return "⚠️ Toni ist momentan offline. Bitte überprüfe dein Gateway.";
+    },
+
+    // ----------------------------------------
+    // OLLAMA (lokal)
+    // ----------------------------------------
+    async _askOllama(prompt) {
         try {
-            this.status = 'local';
-            console.log('[ToniGateway] attempting local Ollama');
-            const res = await fetch('http://localhost:11434/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: 'gemma', prompt: prompt, stream: false })
+            const res = await fetch("http://localhost:11434/api/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: "llama3.1",
+                    prompt: prompt
+                })
             });
-            if (!res.ok) throw new Error('Ollama HTTP ' + res.status);
-            const data = await res.json();
-            const text = data?.response || data?.text || (typeof data === 'string' ? data : '');
-            console.log('[ToniGateway] local response received');
-            return { text: text || '', source: 'local', error: false };
-        } catch (localErr) {
-            console.warn('[ToniGateway] local Ollama failed:', localErr);
-            try {
-                this.status = 'cloud';
-                console.log('[ToniGateway] attempting cloud fallback');
-                const cloudRes = await fetch('/api/openai-proxy', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt })
-                });
-                if (!cloudRes.ok) throw new Error('Cloud HTTP ' + cloudRes.status);
-                const cloudData = await cloudRes.json();
-                const text = cloudData?.text || cloudData?.choices?.[0]?.message?.content || cloudData?.choices?.[0]?.text || '';
-                console.log('[ToniGateway] cloud response received');
-                return { text: text || '', source: 'cloud', error: false };
-            } catch (cloudErr) {
-                console.error('[ToniGateway] cloud fallback failed:', cloudErr);
-                this.status = 'error';
-                return { text: 'Toni ist gerade nicht verfügbar.', source: 'none', error: true };
-            }
-        } finally {
-            try {
-                if (window.ToniEvents && typeof window.ToniEvents.emit === 'function') {
-                    window.ToniEvents.emit('gateway:status', this.status);
-                }
-            } catch (e) {
-                console.warn('[ToniGateway] failed to emit gateway:status', e);
-            }
+
+            if (!res.ok) return null;
+
+            const text = await res.text();
+            return text;
+        } catch (e) {
+            return null;
         }
     },
 
-    isAvailable() {
-        return this.status !== 'error';
+    // ----------------------------------------
+    // OPENAI (Fallback)
+    // ----------------------------------------
+    async _askOpenAI(prompt) {
+        try {
+            const key = localStorage.getItem("TONI2_APIKEY");
+            if (!key) return null;
+
+            const res = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + key
+                },
+                body: JSON.stringify({
+                    model: "gpt-4o-mini",
+                    messages: [{ role: "user", content: prompt }]
+                })
+            });
+
+            if (!res.ok) return null;
+
+            const data = await res.json();
+            return data.choices?.[0]?.message?.content ?? null;
+        } catch (e) {
+            return null;
+        }
     }
 };
 
-// Auto-run initCheck so UI gets immediate status
-try { window.ToniGateway.initCheck(); } catch (e) { /* ignore */ }
+// --------------------------------------------
+// Global verfügbar machen
+// --------------------------------------------
+window.LLMGateway = LLMGateway;
+
+// --------------------------------------------
+// Gateway-Check Event
+// --------------------------------------------
+ToniEvents.on("gateway:check", async () => {
+    const result = await LLMGateway.ask("Test");
+    console.log("[GATEWAY CHECK]", result);
+});
