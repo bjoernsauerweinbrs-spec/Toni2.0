@@ -5,24 +5,22 @@
   <title>TONI 2.0</title>
 
   <!-- Arena CSS -->
-  <link rel="stylesheet" href="./src/ui/arena/arena.css" />
+  <link rel="stylesheet" href="./Toni2.0/src/ui/arena/arena.css" />
 </head>
 <body>
 
-  <!-- Arena Root -->
   <div id="app-root">
-    <!-- Arena UI wird hier geladen -->
     <div id="arena"></div>
   </div>
 
-  <!-- Arena HTML -->
+  <!-- Arena HTML einfügen -->
   <script type="module">
-    import '../src/ui/arena/arena.html';
+    import './Toni2.0/src/ui/arena/arena.html';
   </script>
 
-  <!-- Arena Logic -->
+  <!-- Arena Logik -->
   <script type="module">
-    import { initArena } from './src/modules/arena/arena.js';
+    import { initArena } from './Toni2.0/src/modules/arena/arena.js';
     initArena();
   </script>
 
