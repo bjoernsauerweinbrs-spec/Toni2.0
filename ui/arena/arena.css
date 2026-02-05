@@ -24,11 +24,18 @@
   border: 1px solid #444;
   color: white;
   cursor: pointer;
+  border-radius: 4px;
 }
 
 #arena-toolbar button:hover,
 #arena-toolbar select:hover {
   background: #444;
+}
+
+/* Aktives Tool */
+#arena-toolbar button.active {
+  background: #0077ff;
+  border-color: #0099ff;
 }
 
 /* Spielfeld */
@@ -87,8 +94,4 @@
 
 .player:active {
   cursor: grabbing;
-}
-#arena-toolbar button.active {
-  background: #0077ff;
-  border-color: #0099ff;
 }
