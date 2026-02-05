@@ -1,0 +1,16 @@
+/* toni/src/modules/analysis/analysis.styles.css */
+
+.analysis-player,
+.analysis-team {
+  background: #1a1a1a;
+  padding: 20px;
+  border-radius: 10px;
+  color: white;
+  width: 350px;
+}
+
+.analysis-section {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
+}
