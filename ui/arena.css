@@ -88,3 +88,7 @@
 .player:active {
   cursor: grabbing;
 }
+#arena-toolbar button.active {
+  background: #0077ff;
+  border-color: #0099ff;
+}
