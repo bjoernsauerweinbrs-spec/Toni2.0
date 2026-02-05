@@ -1,26 +1,51 @@
-// logic/event-bus.js
-// Einfacher EventBus für lose Kopplung zwischen Modulen
+// ============================================
+// TONI 2.0 – EVENT BUS
+// Globale, modulübergreifende Kommunikation
+// ============================================
 
-(function () {
-    const listeners = {};
+export const ToniEvents = {
+    _events: {},
 
-    window.ToniEvents = {
-        on(event, cb) {
-            if (!listeners[event]) listeners[event] = [];
-            listeners[event].push(cb);
-        },
-        off(event, cb) {
-            if (!listeners[event]) return;
-            listeners[event] = listeners[event].filter(fn => fn !== cb);
-        },
-        emit(event, payload) {
-            if (!listeners[event]) return;
-            listeners[event].forEach(fn => {
-                try { fn(payload); } catch (e) { console.error('[ToniEvents] handler error', e); }
-            });
-        },
-        clear() {
-            Object.keys(listeners).forEach(k => delete listeners[k]);
+    // ----------------------------------------
+    // Listener registrieren
+    // ----------------------------------------
+    on(eventName, callback) {
+        if (!this._events[eventName]) {
+            this._events[eventName] = [];
         }
-    };
-})();
+        this._events[eventName].push(callback);
+    },
+
+    // ----------------------------------------
+    // Listener entfernen
+    // ----------------------------------------
+    off(eventName, callback) {
+        if (!this._events[eventName]) return;
+
+        this._events[eventName] = this._events[eventName].filter(
+            (cb) => cb !== callback
+        );
+    },
+
+    // ----------------------------------------
+    // Event auslösen
+    // ----------------------------------------
+    emit(eventName, data = null) {
+        if (!this._events[eventName]) return;
+
+        for (const callback of this._events[eventName]) {
+            try {
+                callback(data);
+            } catch (err) {
+                console.error(`[EventBus] Fehler im Listener für "${eventName}"`, err);
+            }
+        }
+    }
+};
+
+// --------------------------------------------
+// Global verfügbar machen
+// --------------------------------------------
+window.ToniEvents = ToniEvents;
+
+console.log("%c[TONI 2.0] EventBus geladen", "color:#00ff88");
