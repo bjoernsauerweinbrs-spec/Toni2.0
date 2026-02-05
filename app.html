@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>TONI 2.0 - PRO MATCHDAY</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/all.min.css">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+</head>
+<body>
+    <div class="pro-layout-container">
+        <nav class="sidebar-minimal">
+            <div class="control-unit" onclick="window.BriefcaseUI && window.BriefcaseUI.toggle && window.BriefcaseUI.toggle('sporttasche')"><i class="fas fa-briefcase"></i></div>
+            <div class="control-unit" onclick="window.BriefcaseUI && window.BriefcaseUI.toggle && window.BriefcaseUI.toggle('analyse')"><i class="fas fa-chart-line"></i></div>
+            <div class="control-unit" onclick="window.BriefcaseUI && window.BriefcaseUI.toggle && window.BriefcaseUI.toggle('system')"><i class="fas fa-cog"></i></div>
+        </nav>
+        <main id="stage-container">
+            <canvas id="main-canvas"></canvas>
+            <div id="toni-status-bar">SYSTEM: <span id="status-text">READY</span></div>
+        </main>
+        <aside class="analysis-panel">
+            <div id="chat-messages"></div>
+            <div class="input-area">
+                <input type="text" id="user-input" placeholder="Befehl...">
+                <button id="send-btn">Senden</button>
+            </div>
+        </aside>
+    </div>
+    <div id="briefcase-overlay" class="briefcase-overlay" style="display:none;">
+        <div class="briefcase-window"><div id="active-content"></div></div>
+    </div>
+
+    <!-- Logic (als Module geladen, damit ESM-Syntax in Bundles nicht bricht) -->
+    <script type="module" src="logic/event-bus.js"></script>
+    <script type="module" src="logic/database.js"></script>
+    <script type="module" src="logic/llm-gateway.js"></script>
+    <script type="module" src="logic/toni-core.js"></script>
+
+    <!-- Engine -->
+    <script type="module" src="engine/arena.js"></script>
+
+    <!-- UI -->
+    <script type="module" src="ui/briefcase-ui.js"></script>
+    <script type="module" src="ui/sektoren/sektor-sporttasche.js"></script>
+    <script type="module" src="ui/sektoren/sektor-analyse.js"></script>
+    <script type="module" src="ui/sektoren/sektor-system.js"></script>
+
+    <script type="module">
+    async function waitForGatewayStatus(timeout = 2000) {
+        return new Promise((resolve) => {
+            let resolved = false;
+            const timer = setTimeout(() => { if (!resolved) { resolved = true; resolve(null); } }, timeout);
+            try {
+                if (window.ToniEvents && typeof window.ToniEvents.on === 'function') {
+                    window.ToniEvents.on('gateway:status', (s) => { if (!resolved) { resolved = true; clearTimeout(timer); resolve(s); } });
+                }
+            } catch (e) { clearTimeout(timer); resolve(null); }
+        });
+    }
+
+    async function bootstrap() {
+        try {
+            if (document.readyState === 'loading') {
+                await new Promise(r => window.addEventListener('DOMContentLoaded', r, { once: true }));
+            }
+
+            if (window.ToniDB && typeof window.ToniDB.init === 'function') { window.ToniDB.init(); console.log('[BOOT] ToniDB initialized'); }
+            if (window.arena && typeof window.arena.init === 'function') { window.arena.init('main-canvas'); console.log('[BOOT] Arena initialized'); }
+
+            if (window.SektorSporttasche && typeof window.SektorSporttasche.init === 'function') { window.SektorSporttasche.init('active-content'); }
+            if (window.SektorAnalyse && typeof window.SektorAnalyse.init === 'function') { window.SektorAnalyse.init('active-content'); }
+
+            const input = document.getElementById('user-input');
+            const sendBtn = document.getElementById('send-btn');
+            function sendMessage() {
+                const text = input.value && input.value.trim();
+                if (!text) return;
+                if (window.ToniCore && typeof window.ToniCore.processMessage === 'function') { window.ToniCore.processMessage(text); }
+                input.value = '';
+            }
+            if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+            if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+            const gwStatus = await waitForGatewayStatus(2000);
+            const statusTextEl = document.getElementById('status-text');
+            if (gwStatus && statusTextEl) {
+                statusTextEl.textContent = 'GATEWAY: ' + String(gwStatus).toUpperCase();
+                statusTextEl.style.color = (gwStatus === 'error') ? 'var(--status-error)' : 'var(--neon-green)';
+            } else if (statusTextEl) {
+                statusTextEl.textContent = 'BEREIT';
+                statusTextEl.style.color = 'var(--neon-green)';
+            }
+
+            try {
+                if (window.ToniEvents && typeof window.ToniEvents.on === 'function') {
+                    window.ToniEvents.on('gateway:status', (s) => {
+                        const el = document.getElementById('status-text');
+                        if (!el) return;
+                        el.textContent = 'GATEWAY: ' + String(s).toUpperCase();
+                        el.style.color = (s === 'error') ? 'var(--status-error)' : 'var(--neon-green)';
+                    });
+                }
+            } catch (e) { console.warn('[BOOT] failed to attach gateway:status listener', e); }
+
+            console.log('[BOOT] bootstrap completed');
+        } catch (e) {
+            console.error('[BOOT] bootstrap failed', e);
+            const statusText = document.getElementById('status-text');
+            if (statusText) { statusText.textContent = 'BOOT ERROR'; statusText.style.color = 'var(--status-error)'; }
+        }
+    }
+
+    bootstrap();
+    </script>
+</body>
+</html>
