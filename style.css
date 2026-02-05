@@ -359,3 +359,34 @@ body {
     padding: 10px;
     border-radius: 6px;
 }
+/* ===========================
+   SYSTEM PANEL
+   =========================== */
+
+.system-box {
+    background: #222;
+    border: 1px solid #444;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.system-btn {
+    background: var(--neon-green);
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+.system-box input {
+    width: 100%;
+    padding: 8px;
+    background: #111;
+    border: 1px solid #444;
+    color: white;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
