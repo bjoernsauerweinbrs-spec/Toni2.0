@@ -1,0 +1,90 @@
+#arena {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  color: white;
+  user-select: none;
+}
+
+/* Toolbar */
+#arena-toolbar {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: #222;
+  border-bottom: 1px solid #333;
+}
+
+#arena-toolbar button,
+#arena-toolbar select {
+  padding: 8px 12px;
+  background: #333;
+  border: 1px solid #444;
+  color: white;
+  cursor: pointer;
+}
+
+#arena-toolbar button:hover,
+#arena-toolbar select:hover {
+  background: #444;
+}
+
+/* Spielfeld */
+#arena-field-wrapper {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+#arena-field {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Linien-Layer */
+#arena-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.line {
+  position: absolute;
+  height: 4px;
+  background: red;
+  transform-origin: left center;
+}
+
+/* Spieler-Layer */
+#arena-players {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.player {
+  width: 40px;
+  height: 40px;
+  background: #00aaff;
+  border-radius: 50%;
+  position: absolute;
+  cursor: grab;
+  border: 2px solid white;
+}
+
+.player:active {
+  cursor: grabbing;
+}
