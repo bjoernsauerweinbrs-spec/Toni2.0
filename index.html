@@ -1,15 +1,30 @@
-<!-- toni/src/app/index.html -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
   <title>TONI 2.0</title>
-  <link rel="stylesheet" href="./app.styles.css" />
+
+  <!-- Arena CSS -->
+  <link rel="stylesheet" href="./src/ui/arena/arena.css" />
 </head>
 <body>
 
-  <div id="app-root"></div>
+  <!-- Arena Root -->
+  <div id="app-root">
+    <!-- Arena UI wird hier geladen -->
+    <div id="arena"></div>
+  </div>
 
-  <script type="module" src="./app.ts"></script>
+  <!-- Arena HTML -->
+  <script type="module">
+    import '../src/ui/arena/arena.html';
+  </script>
+
+  <!-- Arena Logic -->
+  <script type="module">
+    import { initArena } from './src/modules/arena/arena.js';
+    initArena();
+  </script>
+
 </body>
 </html>
