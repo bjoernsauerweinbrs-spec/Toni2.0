@@ -12,19 +12,19 @@
     <div class="pro-layout-container">
         <nav class="sidebar-minimal">
             <div class="control-unit"
-                 onclick="window.BriefcaseUI && window.BriefcaseUI.toggle && window.BriefcaseUI.toggle('sporttasche')">
+                 onclick="window.BriefcaseUI?.toggle('sporttasche')">
                 <i class="fas fa-briefcase"></i>
             </div>
             <div class="control-unit"
-                 onclick="window.BriefcaseUI && window.BriefcaseUI.toggle && window.BriefcaseUI.toggle('analyse')">
+                 onclick="window.BriefcaseUI?.toggle('analyse')">
                 <i class="fas fa-chart-line"></i>
             </div>
             <div class="control-unit"
-                 onclick="window.BriefcaseUI && window.BriefcaseUI.toggle && window.BriefcaseUI.toggle('templates')">
+                 onclick="window.BriefcaseUI?.toggle('templates')">
                 <i class="fas fa-file-alt"></i>
             </div>
             <div class="control-unit"
-                 onclick="window.BriefcaseUI && window.BriefcaseUI.toggle && window.BriefcaseUI.toggle('system')">
+                 onclick="window.BriefcaseUI?.toggle('system')">
                 <i class="fas fa-cog"></i>
             </div>
         </nav>
@@ -80,16 +80,14 @@
             }, timeout);
 
             try {
-                if (window.ToniEvents && typeof window.ToniEvents.on === 'function') {
-                    window.ToniEvents.on('gateway:status', (s) => {
-                        if (!resolved) {
-                            resolved = true;
-                            clearTimeout(timer);
-                            resolve(s);
-                        }
-                    });
-                }
-            } catch (e) {
+                window.ToniEvents?.on('gateway:status', (s) => {
+                    if (!resolved) {
+                        resolved = true;
+                        clearTimeout(timer);
+                        resolve(s);
+                    }
+                });
+            } catch {
                 clearTimeout(timer);
                 resolve(null);
             }
@@ -102,58 +100,41 @@
                 await new Promise(r => window.addEventListener('DOMContentLoaded', r, { once: true }));
             }
 
-            if (window.ToniDB && typeof window.ToniDB.init === 'function') {
-                window.ToniDB.init();
-            }
+            window.ToniDB?.init();
+            window.arena?.init('main-canvas');
 
-            if (window.arena && typeof window.arena.init === 'function') {
-                window.arena.init('main-canvas');
-            }
-
-            if (window.SektorSporttasche && typeof window.SektorSporttasche.init === 'function') {
-                window.SektorSporttasche.init('active-content');
-            }
-            if (window.SektorAnalyse && typeof window.SektorAnalyse.init === 'function') {
-                window.SektorAnalyse.init('active-content');
-            }
-            if (window.SektorTemplates && typeof window.SektorTemplates.init === 'function') {
-                window.SektorTemplates.init('active-content');
-            }
-            if (window.SektorSystem && typeof window.SektorSystem.init === 'function') {
-                window.SektorSystem.init('active-content');
-            }
+            window.SektorSporttasche?.init('active-content');
+            window.SektorAnalyse?.init('active-content');
+            window.SektorTemplates?.init('active-content');
+            window.SektorSystem?.init('active-content');
 
             const input = document.getElementById('user-input');
             const sendBtn = document.getElementById('send-btn');
 
             function sendMessage() {
-                const text = input && input.value && input.value.trim();
+                const text = input?.value?.trim();
                 if (!text) return;
-                if (window.ToniCore && typeof window.ToniCore.processMessage === 'function') {
-                    window.ToniCore.processMessage(text);
-                }
+                window.ToniCore?.processMessage(text);
                 input.value = '';
             }
 
-            if (sendBtn) sendBtn.addEventListener('click', sendMessage);
-            if (input) input.addEventListener('keydown', (e) => {
+            sendBtn?.addEventListener('click', sendMessage);
+            input?.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') sendMessage();
             });
 
             const gwStatus = await waitForGatewayStatus(2000);
             const statusTextEl = document.getElementById('status-text');
 
-            if (gwStatus && statusTextEl) {
+            if (gwStatus) {
                 statusTextEl.textContent = 'GATEWAY: ' + String(gwStatus).toUpperCase();
-            } else if (statusTextEl) {
+            } else {
                 statusTextEl.textContent = 'BEREIT';
             }
         } catch (e) {
             console.error('[BOOT] bootstrap failed', e);
             const statusText = document.getElementById('status-text');
-            if (statusText) {
-                statusText.textContent = 'BOOT ERROR';
-            }
+            if (statusText) statusText.textContent = 'BOOT ERROR';
         }
     }
 
