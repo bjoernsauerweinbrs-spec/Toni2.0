@@ -1,0 +1,208 @@
+/* ===========================
+   TONI 2.0 – GLOBAL STYLES
+   =========================== */
+
+:root {
+    --bg-dark: #0d0d0d;
+    --bg-panel: #1a1a1a;
+    --bg-overlay: rgba(0,0,0,0.75);
+
+    --neon-green: #00ff88;
+    --neon-blue: #00aaff;
+    --neon-red: #ff3355;
+
+    --text-light: #e6e6e6;
+    --text-dim: #999;
+
+    --border-soft: #333;
+    --border-strong: #555;
+
+    --sidebar-width: 70px;
+    --analysis-width: 320px;
+}
+
+/* ===========================
+   GLOBAL RESET
+   =========================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+body {
+    background: var(--bg-dark);
+    color: var(--text-light);
+    overflow: hidden;
+}
+
+/* ===========================
+   LAYOUT WRAPPER
+   =========================== */
+
+.pro-layout-container {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) 1fr var(--analysis-width);
+    height: 100vh;
+    width: 100vw;
+}
+
+/* ===========================
+   SIDEBAR
+   =========================== */
+
+.sidebar-minimal {
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 15px;
+    gap: 20px;
+}
+
+.control-unit {
+    width: 50px;
+    height: 50px;
+    background: #111;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.control-unit:hover {
+    border-color: var(--neon-green);
+    color: var(--neon-green);
+}
+
+/* ===========================
+   MAIN STAGE (CANVAS)
+   =========================== */
+
+#stage-container {
+    position: relative;
+    background: #0f0f0f;
+}
+
+#main-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* ===========================
+   STATUS BAR
+   =========================== */
+
+#toni-status-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(0,0,0,0.6);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    border: 1px solid var(--border-soft);
+}
+
+#status-text {
+    color: var(--neon-green);
+}
+
+/* ===========================
+   ANALYSIS PANEL (RIGHT)
+   =========================== */
+
+.analysis-panel {
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+
+#chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.input-area {
+    display: flex;
+    gap: 5px;
+}
+
+.input-area input {
+    flex: 1;
+    padding: 8px;
+    background: #111;
+    border: 1px solid var(--border-soft);
+    color: var(--text-light);
+    border-radius: 4px;
+}
+
+.input-area button {
+    padding: 8px 12px;
+    background: var(--neon-green);
+    border: none;
+    color: #000;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* ===========================
+   BRIEFCASE OVERLAY
+   =========================== */
+
+.briefcase-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--bg-overlay);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+}
+
+.briefcase-window {
+    width: 900px;
+    height: 600px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+/* ===========================
+   SEKTOR CONTENT
+   =========================== */
+
+#active-content {
+    width: 100%;
+    height: 100%;
+    color: var(--text-light);
+}
+
+/* ===========================
+   SCROLLBAR
+   =========================== */
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 4px;
+}
