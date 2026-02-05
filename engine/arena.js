@@ -1,6 +1,7 @@
 // ============================================
-// TONI 2.0 – ARENA ENGINE
-// Spielfeld, Spieler, Drag & Drop, Rendering
+// TONI 2.0 – ARENA ENGINE (4-4-2 + KI-Bewegung)
+// Spielfeld, Spieler, Drag & Drop, Gruppen,
+// KI-Formation-Movement
 // ============================================
 
 import { ToniEvents } from "../logic/event-bus.js";
@@ -10,11 +11,13 @@ export const arena = {
     canvas: null,
     ctx: null,
 
-    players: {}, // { id: { x, y, color } }
-
+    players: {},      // { id: { x, y, color, role, line } }
     dragging: null,
     offsetX: 0,
     offsetY: 0,
+
+    animating: false,
+    animationTargets: {}, // { id: { x, y } }
 
     // ----------------------------------------
     // Initialisierung
@@ -31,11 +34,12 @@ export const arena = {
         this._resizeCanvas();
         window.addEventListener("resize", () => this._resizeCanvas());
 
-        this._loadPlayers();
+        this._loadPlayersWithFormation();
         this._setupMouseEvents();
+        this._setupAIListeners();
 
         requestAnimationFrame(() => this._render());
-        console.log("%c[TONI 2.0] Arena geladen", "color:#00ff88");
+        console.log("%c[TONI 2.0] Arena (4-4-2) geladen", "color:#00ff88");
     },
 
     // ----------------------------------------
@@ -47,26 +51,91 @@ export const arena = {
     },
 
     // ----------------------------------------
-    // Spieler laden (11+5 Heim, 11 Gegner)
+    // Spieler mit 4-4-2-Formation laden
     // ----------------------------------------
-    _loadPlayers() {
+    _loadPlayersWithFormation() {
         const homeStarters = ToniDB.data.squad.home.starters;
         const homeBench = ToniDB.data.squad.home.bench;
         const awayStarters = ToniDB.data.squad.away.starters;
 
-        const allPlayers = [
-            ...homeStarters.map(id => ({ id, color: "red" })),
-            ...homeBench.map(id => ({ id, color: "red" })),
-            ...awayStarters.map(id => ({ id, color: "blue" }))
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+
+        // 4-4-2 für Heimteam
+        // Index 0–10 = 11 Startspieler
+        // 0: TW, 1–4: Abwehr, 5–8: Mittelfeld, 9–10: Angriff
+        const formationHome = [
+            { line: "keeper", x: 0.10, y: 0.50 }, // TW
+            { line: "defense", x: 0.25, y: 0.20 }, // RV
+            { line: "defense", x: 0.25, y: 0.40 }, // IV rechts
+            { line: "defense", x: 0.25, y: 0.60 }, // IV links
+            { line: "defense", x: 0.25, y: 0.80 }, // LV
+            { line: "midfield", x: 0.45, y: 0.20 }, // RM
+            { line: "midfield", x: 0.45, y: 0.40 }, // ZM rechts
+            { line: "midfield", x: 0.45, y: 0.60 }, // ZM links
+            { line: "midfield", x: 0.45, y: 0.80 }, // LM
+            { line: "attack", x: 0.65, y: 0.35 }, // ST rechts
+            { line: "attack", x: 0.65, y: 0.65 }  // ST links
         ];
 
-        allPlayers.forEach((p, index) => {
-            const savedPos = ToniDB.data.positions[p.id];
+        // Gegner grob spiegeln
+        const formationAway = [
+            { line: "attack", x: 0.90, y: 0.50 },
+            { line: "midfield", x: 0.75, y: 0.20 },
+            { line: "midfield", x: 0.75, y: 0.40 },
+            { line: "midfield", x: 0.75, y: 0.60 },
+            { line: "midfield", x: 0.75, y: 0.80 },
+            { line: "defense", x: 0.55, y: 0.20 },
+            { line: "defense", x: 0.55, y: 0.40 },
+            { line: "defense", x: 0.55, y: 0.60 },
+            { line: "defense", x: 0.55, y: 0.80 },
+            { line: "keeper", x: 0.80, y: 0.50 },
+            { line: "attack", x: 0.88, y: 0.30 }
+        ];
 
-            this.players[p.id] = {
-                x: savedPos?.x ?? (100 + (index * 40)),
-                y: savedPos?.y ?? (100 + (index * 20)),
-                color: p.color
+        // Heim: 11 Startspieler
+        homeStarters.forEach((id, index) => {
+            const savedPos = ToniDB.data.positions[id];
+            const f = formationHome[index] ?? { line: "midfield", x: 0.5, y: 0.5 };
+
+            const baseX = f.x * w;
+            const baseY = f.y * h;
+
+            this.players[id] = {
+                x: savedPos?.x ?? baseX,
+                y: savedPos?.y ?? baseY,
+                color: "red",
+                line: f.line
+            };
+        });
+
+        // Bank: rechts unten parken
+        homeBench.forEach((id, index) => {
+            const savedPos = ToniDB.data.positions[id];
+            const baseX = 0.10 * w;
+            const baseY = (0.10 + index * 0.07) * h;
+
+            this.players[id] = {
+                x: savedPos?.x ?? baseX,
+                y: savedPos?.y ?? baseY,
+                color: "red",
+                line: "bench"
+            };
+        });
+
+        // Gegner: 11 Spieler
+        awayStarters.forEach((id, index) => {
+            const savedPos = ToniDB.data.positions[id];
+            const f = formationAway[index] ?? { line: "midfield", x: 0.7, y: 0.5 };
+
+            const baseX = f.x * w;
+            const baseY = f.y * h;
+
+            this.players[id] = {
+                x: savedPos?.x ?? baseX,
+                y: savedPos?.y ?? baseY,
+                color: "blue",
+                line: f.line
             };
         });
     },
@@ -118,6 +187,55 @@ export const arena = {
     },
 
     // ----------------------------------------
+    // KI-Events aus ToniCore
+    // ----------------------------------------
+    _setupAIListeners() {
+        ToniEvents.on("ai:move", (payload) => {
+            const direction = payload?.direction ?? null;
+            if (!direction) return;
+
+            this._applyFormationShift(direction);
+        });
+    },
+
+    // ----------------------------------------
+    // Formation verschieben (KI-Bewegung)
+    // ----------------------------------------
+    _applyFormationShift(direction) {
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+
+        const shift = {
+            forward: { dx: w * 0.03, dy: 0 },
+            back:    { dx: -w * 0.03, dy: 0 },
+            left:    { dx: 0, dy: -h * 0.03 },
+            right:   { dx: 0, dy: h * 0.03 }
+        }[direction];
+
+        if (!shift) return;
+
+        this.animationTargets = {};
+        this.animating = true;
+
+        for (const id in this.players) {
+            const p = this.players[id];
+
+            // Torwart bewegt sich nur leicht
+            let factor = 1;
+            if (p.line === "keeper") factor = 0.3;
+            if (p.line === "bench") factor = 0; // Bank bleibt stehen
+
+            const targetX = p.x + shift.dx * factor;
+            const targetY = p.y + shift.dy * factor;
+
+            this.animationTargets[id] = {
+                x: targetX,
+                y: targetY
+            };
+        }
+    },
+
+    // ----------------------------------------
     // Spielfeld zeichnen
     // ----------------------------------------
     _drawField() {
@@ -163,6 +281,13 @@ export const arena = {
             ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
             ctx.fill();
 
+            // Keeper markieren
+            if (p.line === "keeper") {
+                ctx.strokeStyle = "#ffd700";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
             ctx.fillStyle = "white";
             ctx.font = "12px Arial";
             ctx.textAlign = "center";
@@ -171,9 +296,46 @@ export const arena = {
     },
 
     // ----------------------------------------
+    // Animation updaten
+    // ----------------------------------------
+    _updateAnimation() {
+        if (!this.animating) return;
+
+        let stillMoving = false;
+
+        for (const id in this.animationTargets) {
+            const target = this.animationTargets[id];
+            const p = this.players[id];
+            if (!p || !target) continue;
+
+            const dx = target.x - p.x;
+            const dy = target.y - p.y;
+
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 1) {
+                p.x = target.x;
+                p.y = target.y;
+                continue;
+            }
+
+            const step = 0.15; // Animationsgeschwindigkeit
+            p.x += dx * step;
+            p.y += dy * step;
+
+            stillMoving = true;
+        }
+
+        if (!stillMoving) {
+            this.animating = false;
+            this.animationTargets = {};
+        }
+    },
+
+    // ----------------------------------------
     // Render-Loop
     // ----------------------------------------
     _render() {
+        this._updateAnimation();
         this._drawField();
         this._drawPlayers();
 
