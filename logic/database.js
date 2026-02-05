@@ -1,89 +1,158 @@
-// logic/database.js
-// ToniDB: lokale Spielerverwaltung mit Seed + reaktiver Emit-Logik
+// ============================================
+// TONI 2.0 – DATABASE CORE
+// Persistente Speicherung aller Systemdaten
+// ============================================
 
-window.ToniDB = {
+export const ToniDB = {
+    KEY: "TONI2_DB",
+
+    data: {
+        squad: {
+            home: {
+                starters: [],   // 11 Spieler
+                bench: []       // 5 Spieler
+            },
+            away: {
+                starters: []    // 11 Gegner
+            }
+        },
+
+        playerData: {}, // FIFA-Karten, Ratings, Vitaldaten
+
+        positions: {},  // Spielfeld-Koordinaten aller Spieler
+
+        templates: [],  // Matchday-Programm Muster
+
+        settings: {
+            gateway: "unknown",
+            voiceEnabled: false
+        }
+    },
+
+    // ----------------------------------------
+    // Initialisierung
+    // ----------------------------------------
     init() {
-        try {
-            if (!localStorage.getItem('toni_players')) {
-                const seed = [
-                    { id: 'p1', name: 'Manuel Neuer', nr: 1, pos: 'TW', team: 'home', isStarter: true, isPresent: true, rat: 89, vitals: { pulse: 70, spo2: 98 } },
-                    { id: 'p2', name: 'Kylian Mbappé', nr: 7, pos: 'ST', team: 'home', isStarter: true, isPresent: true, rat: 92, vitals: { pulse: 72, spo2: 98 } },
-                    { id: 'p3', name: 'Virgil van Dijk', nr: 4, pos: 'IV', team: 'home', isStarter: true, isPresent: true, rat: 90, vitals: { pulse: 68, spo2: 99 } },
-                    { id: 'opp1', name: 'Gegner 1', nr: 1, pos: 'TW', team: 'away', isStarter: true, isPresent: true, rat: 80, vitals: { pulse: 75, spo2: 97 } },
-                    { id: 'opp2', name: 'Gegner 2', nr: 9, pos: 'ST', team: 'away', isStarter: true, isPresent: true, rat: 82, vitals: { pulse: 76, spo2: 97 } }
-                ];
-                localStorage.setItem('toni_players', JSON.stringify(seed));
-                console.log('[ToniDB] Seed players created');
+        const saved = localStorage.getItem(this.KEY);
+
+        if (saved) {
+            try {
+                this.data = JSON.parse(saved);
+                console.log("%c[TONI 2.0] DB geladen", "color:#00ff88");
+                return;
+            } catch (e) {
+                console.error("[DB] Fehler beim Laden, erstelle neue DB", e);
             }
-        } catch (e) {
-            console.error('[ToniDB] init seed error', e);
         }
 
-        // Emit initial state so all subscribers can sync immediately
-        try {
-            const players = this.getPlayers();
-            window.ToniEvents.emit('players:updated', players);
-            console.log('[ToniDB] players:updated emitted (init)');
-        } catch (e) {
-            console.error('[ToniDB] emit failed', e);
-        }
+        this._createDefaultData();
+        this.save();
+        console.log("%c[TONI 2.0] Neue DB erstellt", "color:#00aaff");
     },
 
-    getPlayers() {
-        try {
-            const raw = localStorage.getItem('toni_players');
-            return raw ? JSON.parse(raw) : [];
-        } catch (e) {
-            console.error('[ToniDB] getPlayers parse error', e);
-            return [];
-        }
+    // ----------------------------------------
+    // Standard-Daten erzeugen
+    // ----------------------------------------
+    _createDefaultData() {
+        // 11 Heimspieler + 5 Bankspieler
+        this.data.squad.home.starters = this._generatePlayers("H", 11);
+        this.data.squad.home.bench = this._generatePlayers("HB", 5);
+
+        // 11 Gegner
+        this.data.squad.away.starters = this._generatePlayers("A", 11);
+
+        // FIFA-Karten + Vitaldaten + Ratings
+        [...this.data.squad.home.starters,
+         ...this.data.squad.home.bench,
+         ...this.data.squad.away.starters].forEach(id => {
+            this.data.playerData[id] = this._generatePlayerData(id);
+        });
     },
 
-    savePlayers(players) {
-        try {
-            localStorage.setItem('toni_players', JSON.stringify(players));
-            window.ToniEvents.emit('players:updated', players);
-            console.log('[ToniDB] players saved and emitted');
-        } catch (e) {
-            console.error('[ToniDB] savePlayers error', e);
+    // ----------------------------------------
+    // Spieler-IDs generieren
+    // ----------------------------------------
+    _generatePlayers(prefix, count) {
+        const arr = [];
+        for (let i = 1; i <= count; i++) {
+            arr.push(prefix + i);
         }
+        return arr;
     },
 
-    updatePlayer(id, patch) {
-        try {
-            const players = this.getPlayers();
-            const idx = players.findIndex(p => p.id === id);
-            if (idx !== -1) {
-                players[idx] = { ...players[idx], ...patch };
-                this.savePlayers(players);
-                console.log('[ToniDB] player updated', id, patch);
-            } else {
-                console.warn('[ToniDB] updatePlayer: id not found', id);
+    // ----------------------------------------
+    // FIFA-Karten + Vitaldaten generieren
+    // ----------------------------------------
+    _generatePlayerData(id) {
+        return {
+            name: "Spieler " + id,
+            number: Math.floor(Math.random() * 30) + 1,
+            position: this._randomPosition(),
+            rating: Math.floor(Math.random() * 20) + 80, // 80–99
+            flag: "de", // später erweiterbar
+            available: true,
+
+            vitals: {
+                bpm: 70 + Math.floor(Math.random() * 20),
+                spo2: 95 + Math.floor(Math.random() * 5)
             }
-        } catch (e) {
-            console.error('[ToniDB] updatePlayer error', e);
+        };
+    },
+
+    _randomPosition() {
+        const pos = ["TW", "IV", "IV", "LV", "RV", "ZM", "ZM", "LM", "RM", "ST", "ST"];
+        return pos[Math.floor(Math.random() * pos.length)];
+    },
+
+    // ----------------------------------------
+    // Positionen speichern
+    // ----------------------------------------
+    savePosition(id, x, y) {
+        this.data.positions[id] = { x, y };
+        this.save();
+    },
+
+    // ----------------------------------------
+    // Anwesenheit ändern
+    // ----------------------------------------
+    setAvailability(id, status) {
+        if (this.data.playerData[id]) {
+            this.data.playerData[id].available = status;
+            this.save();
         }
     },
 
-    addPlayer(player) {
-        try {
-            const players = this.getPlayers();
-            players.push(player);
-            this.savePlayers(players);
-            console.log('[ToniDB] player added', player.id);
-        } catch (e) {
-            console.error('[ToniDB] addPlayer error', e);
-        }
+    // ----------------------------------------
+    // Template speichern
+    // ----------------------------------------
+    saveTemplate(template) {
+        this.data.templates.push(template);
+        this.save();
     },
 
-    removePlayer(id) {
+    // ----------------------------------------
+    // Gateway-Status speichern
+    // ----------------------------------------
+    setGatewayStatus(status) {
+        this.data.settings.gateway = status;
+        this.save();
+    },
+
+    // ----------------------------------------
+    // Speichern in LocalStorage
+    // ----------------------------------------
+    save() {
         try {
-            let players = this.getPlayers();
-            players = players.filter(p => p.id !== id);
-            this.savePlayers(players);
-            console.log('[ToniDB] player removed', id);
+            localStorage.setItem(this.KEY, JSON.stringify(this.data));
         } catch (e) {
-            console.error('[ToniDB] removePlayer error', e);
+            console.error("[DB] Fehler beim Speichern", e);
         }
     }
 };
+
+// --------------------------------------------
+// Global verfügbar machen
+// --------------------------------------------
+window.ToniDB = ToniDB;
+
+console.log("%c[TONI 2.0] Database geladen", "color:#00ff88");
