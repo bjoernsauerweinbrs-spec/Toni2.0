@@ -34,6 +34,7 @@
       overflow: hidden;
     }
 
+    /* Canvas füllt Wrapper; tatsächliche Pixelgröße wird per JS an devicePixelRatio angepasst */
     canvas#arena-field {
       position: absolute;
       top: 0;
@@ -42,6 +43,10 @@
       height: 100%;
       display: block;
     }
+
+    /* kleine Hilfen für data-field (optional, du kannst in arena.css darauf reagieren) */
+    #arena-field-wrapper[data-field="halle"] { background-image: url('fields/halle.png'); background-size: cover; }
+    #arena-field-wrapper[data-field="funino"] { background-image: url('fields/funino.png'); background-size: cover; }
   </style>
 </head>
 <body>
@@ -74,42 +79,60 @@
     </div>
   </div>
 
-  <!-- Skripte: ToniDB (Stub/real) vor arena.js, dann Init -->
+  <!-- Skripte: ToniDB (mit localStorage) vor arena.js, dann Init -->
   <script src="toni-db.js"></script>
   <script src="arena.js"></script>
 
-  <!-- Init und kleine Toolbar-Interaktion (lokal, keine Abhängigkeit) -->
+  <!-- Init, DPR-Resize-Patch und Toolbar-Interaktion -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      // Initialisierung der Arena-Engine (Canvas-ID muss übereinstimmen)
+      // 1) Init der Arena-Engine (Canvas-ID muss übereinstimmen)
       if (window.arena && typeof window.arena.init === "function") {
         window.arena.init("arena-field");
       } else {
         console.warn("Arena nicht verfügbar oder arena.init fehlt");
       }
 
-      // Toolbar: active-Klasse & aria-pressed verwalten
+      // 2) DPR-Resize-Patch: ruft arena._resizeCanvas() bei Resize und setzt initial
+      (function applyDPRResizePatch() {
+        const canvas = document.getElementById("arena-field");
+        if (!canvas || !window.arena) return;
+
+        // call engine resize once (engine implements DPR-aware resize)
+        if (typeof window.arena._resizeCanvas === "function") {
+          window.arena._resizeCanvas();
+        }
+
+        // ensure engine resize is called on window resize
+        window.addEventListener("resize", () => {
+          if (typeof window.arena._resizeCanvas === "function") {
+            window.arena._resizeCanvas();
+          }
+        });
+      })();
+
+      // 3) Toolbar: active-Klasse & aria-pressed verwalten
       const toolbar = document.getElementById("arena-toolbar");
       if (toolbar) {
         toolbar.addEventListener("click", (ev) => {
           const btn = ev.target.closest("button[data-tool]");
           if (!btn) return;
-          // Toggle active for mutually exclusive tools (move/line/arrow/delete)
           const tool = btn.getAttribute("data-tool");
+
           if (tool === "reset") {
             // Reset-Event an die Engine senden, falls vorhanden
             if (window.arena && typeof window.arena.reset === "function") {
               window.arena.reset();
-            } else {
-              // Fallback: reload positions from ToniDB if available
-              if (window.ToniDB && window.arena && typeof window.arena._loadPlayersWithFormation === "function") {
+            } else if (window.ToniDB && typeof window.ToniDB.clearPositions === "function") {
+              window.ToniDB.clearPositions();
+              if (window.arena && typeof window.arena._loadPlayersWithFormation === "function") {
                 window.arena._loadPlayersWithFormation();
               }
             }
             return;
           }
 
-          // Set active state
+          // Set active state (mutually exclusive)
           toolbar.querySelectorAll("button[data-tool]").forEach(b => {
             b.classList.remove("active");
             b.setAttribute("aria-pressed", "false");
@@ -117,20 +140,23 @@
           btn.classList.add("active");
           btn.setAttribute("aria-pressed", "true");
 
-          // Optional: informiere die Engine über Toolwechsel
+          // Informiere die Engine über Toolwechsel (falls unterstützt)
           if (window.arena && typeof window.arena.setTool === "function") {
             window.arena.setTool(tool);
           }
         });
       }
 
-      // Feld-Auswahl: informiere Engine (falls unterstützt)
+      // 4) Feld-Auswahl: informiere Engine (falls unterstützt)
       const select = document.getElementById("arena-field-select");
       if (select) {
         select.addEventListener("change", () => {
           const val = select.value;
           if (window.arena && typeof window.arena.setField === "function") {
             window.arena.setField(val);
+          } else {
+            const wrapper = document.getElementById("arena-field-wrapper");
+            if (wrapper) wrapper.dataset.field = val;
           }
         });
       }
