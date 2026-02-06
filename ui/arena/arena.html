@@ -121,7 +121,7 @@
     <!-- Toast-Container -->
     <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
-    <!-- FIFA Player-Card Modal (Skeleton, Logik in arena.js / extern) -->
+    <!-- FIFA Player-Card Modal -->
     <div id="playercard-backdrop" class="modal-backdrop" hidden>
       <div id="playercard-modal" class="playercard-modal" role="dialog" aria-modal="true" aria-labelledby="playercard-title">
         <div class="playercard-header">
@@ -175,7 +175,7 @@
       </div>
     </div>
 
-    <!-- Analyse-Center Sidebar (Skeleton) -->
+    <!-- Analyse-Center Sidebar -->
     <aside id="analysis-sidebar" class="analysis-sidebar" aria-label="Analysezentrum" hidden>
       <header class="analysis-header">
         <h2>Analysezentrum</h2>
@@ -183,15 +183,11 @@
       </header>
       <section class="analysis-section">
         <h3>Formation</h3>
-        <div id="analysis-formation-meta">
-          <!-- z.B. Name, Datum, Version -->
-        </div>
+        <div id="analysis-formation-meta"></div>
       </section>
       <section class="analysis-section">
         <h3>Linien</h3>
-        <div id="analysis-lines">
-          <!-- Spieler pro Linie, Durchschnitt X/Y -->
-        </div>
+        <div id="analysis-lines"></div>
       </section>
       <section class="analysis-section">
         <h3>Notizen</h3>
@@ -207,7 +203,7 @@
   <script src="arena.js"></script>
 
   <script>
-    // Toast-Helfer, von arena.toast() genutzt
+    // Toast-Helfer
     window.showToast = function (msg, type = "info") {
       const container = document.getElementById("toast-container");
       if (!container) return;
@@ -222,18 +218,22 @@
       }, 2500);
     };
 
-    // Player-Card Modal API (von arena.js aufgerufen)
+    // Player-Card Modal API
     window.openPlayerCardModal = function (player) {
       const backdrop = document.getElementById("playercard-backdrop");
       if (!backdrop) return;
-      backdrop.hidden = false;
 
       const id = player.id || "";
+      if (!id) return; // Sicherheit: nie ohne ID öffnen
+
+      backdrop.hidden = false;
+
       document.getElementById("playercard-title").textContent = id;
       document.getElementById("playercard-number").value = player.number || "";
       document.getElementById("playercard-role-input").value = player.role || "";
       document.getElementById("playercard-color").value = player.color || "";
-      document.getElementById("playercard-rating").textContent = player.rating != null ? player.rating : "90";
+      document.getElementById("playercard-rating").textContent =
+        player.rating != null ? player.rating : "90";
 
       const attrs = player.attributes || {};
       document.getElementById("attr-pace").value = attrs.pace ?? "";
@@ -332,82 +332,79 @@
         });
       }
 
-      // Player-Card Buttons
-const btnCardCancel = document.getElementById("playercard-cancel");
-const btnCardSave = document.getElementById("playercard-save");
+      // Player-Card Buttons + Rating-Logik
+      const btnCardCancel = document.getElementById("playercard-cancel");
+      const btnCardSave = document.getElementById("playercard-save");
 
-// Rating automatisch berechnen
-function recalcRating() {
-  const attrs = [
-    Number(document.getElementById("attr-pace").value),
-    Number(document.getElementById("attr-dribble").value),
-    Number(document.getElementById("attr-shot").value),
-    Number(document.getElementById("attr-pass").value),
-    Number(document.getElementById("attr-defense").value),
-    Number(document.getElementById("attr-physical").value)
-  ];
+      function recalcRating() {
+        const fields = [
+          "attr-pace",
+          "attr-dribble",
+          "attr-shot",
+          "attr-pass",
+          "attr-defense",
+          "attr-physical"
+        ];
 
-  // Nur gültige Werte berücksichtigen
-  const valid = attrs.filter(v => Number.isFinite(v) && v > 0);
+        const values = fields
+          .map(id => Number(document.getElementById(id).value))
+          .filter(v => Number.isFinite(v) && v > 0);
 
-  if (valid.length === 0) {
-    document.getElementById("playercard-rating").textContent = "0";
-    return;
-  }
+        if (values.length === 0) {
+          document.getElementById("playercard-rating").textContent = "0";
+          return;
+        }
 
-  const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
-  const rating = Math.round(avg); // mathematisches Runden
-  document.getElementById("playercard-rating").textContent = rating;
-}
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        const rating = Math.round(avg);
+        document.getElementById("playercard-rating").textContent = rating;
+      }
 
-// Live-Update für Rating
-["attr-pace","attr-dribble","attr-shot","attr-pass","attr-defense","attr-physical"]
-  .forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("input", recalcRating);
-  });
+      ["attr-pace","attr-dribble","attr-shot","attr-pass","attr-defense","attr-physical"]
+        .forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.addEventListener("input", recalcRating);
+        });
 
-// Abbrechen
-if (btnCardCancel) {
-  btnCardCancel.addEventListener("click", () => {
-    const backdrop = document.getElementById("playercard-backdrop");
-    if (backdrop) backdrop.hidden = true;
-  });
-}
+      if (btnCardCancel) {
+        btnCardCancel.addEventListener("click", () => {
+          const backdrop = document.getElementById("playercard-backdrop");
+          if (backdrop) backdrop.hidden = true;
+        });
+      }
 
-// Speichern
-if (btnCardSave) {
-  btnCardSave.addEventListener("click", () => {
-    const backdrop = document.getElementById("playercard-backdrop");
-    if (!backdrop) return;
+      if (btnCardSave) {
+        btnCardSave.addEventListener("click", () => {
+          const backdrop = document.getElementById("playercard-backdrop");
+          if (!backdrop) return;
 
-    const id = backdrop.dataset.playerId;
-    if (!id) return;
+          const id = backdrop.dataset.playerId;
+          if (!id) return;
 
-    const data = {
-      id,
-      number: document.getElementById("playercard-number").value,
-      role: document.getElementById("playercard-role-input").value,
-      color: document.getElementById("playercard-color").value,
-      rating: Number(document.getElementById("playercard-rating").textContent),
-      attributes: {
-        pace: Number(document.getElementById("attr-pace").value) || null,
-        dribble: Number(document.getElementById("attr-dribble").value) || null,
-        shot: Number(document.getElementById("attr-shot").value) || null,
-        pass: Number(document.getElementById("attr-pass").value) || null,
-        defense: Number(document.getElementById("attr-defense").value) || null,
-        physical: Number(document.getElementById("attr-physical").value) || null
-      },
-      notes: document.getElementById("playercard-notes").value
-    };
+          const data = {
+            id,
+            number: document.getElementById("playercard-number").value,
+            role: document.getElementById("playercard-role-input").value,
+            color: document.getElementById("playercard-color").value,
+            rating: Number(document.getElementById("playercard-rating").textContent),
+            attributes: {
+              pace: Number(document.getElementById("attr-pace").value) || null,
+              dribble: Number(document.getElementById("attr-dribble").value) || null,
+              shot: Number(document.getElementById("attr-shot").value) || null,
+              pass: Number(document.getElementById("attr-pass").value) || null,
+              defense: Number(document.getElementById("attr-defense").value) || null,
+              physical: Number(document.getElementById("attr-physical").value) || null
+            },
+            notes: document.getElementById("playercard-notes").value
+          };
 
-    if (window.arena && typeof window.arena.savePlayerCard === "function") {
-      window.arena.savePlayerCard(data);
-    }
+          if (window.arena && typeof window.arena.savePlayerCard === "function") {
+            window.arena.savePlayerCard(data);
+          }
 
-    backdrop.hidden = true;
-  });
-}
+          backdrop.hidden = true;
+        });
+      }
 
       // Analyse-Center
       const btnAnalysis = document.getElementById("btn-analysis");
