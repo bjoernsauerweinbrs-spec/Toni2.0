@@ -502,6 +502,48 @@ const arena = {
     }
   },
 
-  // ----------------------------------------
+ // ----------------------------------------
   // Utils
-  // --------------------------------
+  // ----------------------------------------
+  _findPlayerAt(mx, my) {
+    // größere Hitbox für Touch
+    const HIT = 28;
+    for (const id in this.players) {
+      const p = this.players[id];
+      const dx = mx - p.x;
+      const dy = my - p.y;
+      if (dx * dx + dy * dy < HIT * HIT) return id;
+    }
+    return null;
+  },
+
+  toast(msg, type = "info") {
+    if (!window.showToast) {
+      console.log("[TOAST]", msg);
+      return;
+    }
+    window.showToast(msg, type);
+  },
+
+  setTool(toolName) {
+    this.currentTool = toolName;
+    this.toast(`Tool: ${toolName}`, "info");
+  },
+
+  reset() {
+    const ToniDB = getToniDB();
+    ToniDB.clearPositions();
+    this._loadPlayersWithFormation();
+    this._pushHistory();
+    this.toast("Reset durchgeführt", "info");
+  },
+
+  setField(fieldKey) {
+    const wrapper = document.getElementById("arena-field-wrapper");
+    if (wrapper) wrapper.dataset.field = fieldKey;
+    this.toast(`Feld geändert: ${fieldKey}`, "info");
+  }
+};
+
+// global machen
+window.arena = arena;
