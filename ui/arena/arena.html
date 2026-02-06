@@ -7,7 +7,7 @@
 
   <link rel="stylesheet" href="arena.css">
 
-  <!-- Fallback-Layout (Basis, Rest in arena.css) -->
+  <!-- Fallback-Layout -->
   <style>
     html, body {
       height: 100%;
@@ -46,12 +46,17 @@
       height: 100%;
       display: block;
     }
-    #arena-field-wrapper[data-field="halle"] { background-size: cover; }
-    #arena-field-wrapper[data-field="funino"] { background-size: cover; }
+
+    /* WICHTIG: Modal wirklich verstecken */
+    #playercard-backdrop[hidden] {
+      display: none !important;
+    }
   </style>
 </head>
+
 <body>
   <div id="arena">
+
     <!-- Toolbar -->
     <header id="arena-toolbar" role="toolbar" aria-label="Arena Werkzeuge">
       <div class="toolbar-group" aria-label="Tools">
@@ -110,7 +115,6 @@
     </header>
 
     <div id="arena-main">
-      <!-- Spielfeld -->
       <div id="arena-field-wrapper" data-field="standard">
         <canvas id="arena-field" aria-label="Spielfeld"></canvas>
         <div id="arena-lines" aria-hidden="true"></div>
@@ -118,12 +122,13 @@
       </div>
     </div>
 
-    <!-- Toast-Container -->
+    <!-- Toast -->
     <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
     <!-- FIFA Player-Card Modal -->
     <div id="playercard-backdrop" class="modal-backdrop" hidden>
       <div id="playercard-modal" class="playercard-modal" role="dialog" aria-modal="true" aria-labelledby="playercard-title">
+
         <div class="playercard-header">
           <div class="playercard-rating">
             <span id="playercard-rating">90</span>
@@ -133,8 +138,10 @@
             <div class="avatar-placeholder">👤</div>
           </div>
         </div>
+
         <div class="playercard-body">
           <h2 id="playercard-title">Spielername</h2>
+
           <div class="playercard-meta">
             <label>
               <span>Nummer</span>
@@ -149,6 +156,7 @@
               <input type="text" id="playercard-color" placeholder="z.B. #ff4444" />
             </label>
           </div>
+
           <div class="playercard-attributes">
             <div class="attr-col">
               <label><span>TEM</span><input type="number" id="attr-pace" min="0" max="99" /></label>
@@ -161,6 +169,7 @@
               <label><span>PHY</span><input type="number" id="attr-physical" min="0" max="99" /></label>
             </div>
           </div>
+
           <div class="playercard-notes">
             <label>
               <span>Notizen</span>
@@ -168,42 +177,49 @@
             </label>
           </div>
         </div>
+
         <div class="playercard-footer">
           <button type="button" id="playercard-cancel">Abbrechen</button>
           <button type="button" id="playercard-save" class="primary">Speichern</button>
         </div>
+
       </div>
     </div>
 
-    <!-- Analyse-Center Sidebar -->
+    <!-- Analyse Sidebar -->
     <aside id="analysis-sidebar" class="analysis-sidebar" aria-label="Analysezentrum" hidden>
       <header class="analysis-header">
         <h2>Analysezentrum</h2>
         <button type="button" id="analysis-close" title="Schließen">✕</button>
       </header>
+
       <section class="analysis-section">
         <h3>Formation</h3>
         <div id="analysis-formation-meta"></div>
       </section>
+
       <section class="analysis-section">
         <h3>Linien</h3>
         <div id="analysis-lines"></div>
       </section>
+
       <section class="analysis-section">
         <h3>Notizen</h3>
         <textarea id="analysis-notes" rows="4" placeholder="Analyse, Coaching-Punkte, Trigger ..."></textarea>
       </section>
+
       <section class="analysis-section">
         <button type="button" id="analysis-export-snapshot">Snapshot exportieren</button>
       </section>
     </aside>
+
   </div>
 
   <script src="toni-db.js"></script>
   <script src="arena.js"></script>
 
   <script>
-    // Toast-Helfer
+    /* Toast */
     window.showToast = function (msg, type = "info") {
       const container = document.getElementById("toast-container");
       if (!container) return;
@@ -218,15 +234,15 @@
       }, 2500);
     };
 
-    // Player-Card Modal API
+    /* PlayerCard Modal – KORRIGIERT */
     window.openPlayerCardModal = function (player) {
-  const backdrop = document.getElementById("playercard-backdrop");
-  if (!backdrop) return;
+      const backdrop = document.getElementById("playercard-backdrop");
+      if (!backdrop) return;
 
-  const id = player?.id;
-  if (!id) return; // WICHTIG: niemals ohne ID öffnen
+      const id = player?.id;
+      if (!id) return;
 
-  backdrop.hidden = false;
+      backdrop.hidden = false;
 
       document.getElementById("playercard-title").textContent = id;
       document.getElementById("playercard-number").value = player.number || "";
@@ -252,12 +268,14 @@
       if (backdrop) backdrop.hidden = true;
     }
 
+    /* DOMContentLoaded */
     document.addEventListener("DOMContentLoaded", () => {
+
       if (window.arena && typeof window.arena.init === "function") {
         window.arena.init("arena-field");
       }
 
-      // Toolbar Tool-Wechsel
+      /* Toolbar */
       const toolbar = document.getElementById("arena-toolbar");
       if (toolbar) {
         toolbar.addEventListener("click", (ev) => {
@@ -285,18 +303,18 @@
         });
       }
 
-      // Undo / Redo
+      /* Undo / Redo */
       const btnUndo = document.getElementById("btn-undo");
       const btnRedo = document.getElementById("btn-redo");
-      if (btnUndo) btnUndo.addEventListener("click", () => window.arena && arena.undo && arena.undo());
-      if (btnRedo) btnRedo.addEventListener("click", () => window.arena && arena.redo && arena.redo());
+      if (btnUndo) btnUndo.addEventListener("click", () => arena.undo && arena.undo());
+      if (btnRedo) btnRedo.addEventListener("click", () => arena.redo && arena.redo());
 
-      // Export / Import
+      /* Export / Import */
       const btnExport = document.getElementById("btn-export");
       const btnImport = document.getElementById("btn-import");
       const fileInput = document.getElementById("arena-import-file");
 
-      if (btnExport) btnExport.addEventListener("click", () => window.arena && arena.exportAll && arena.exportAll());
+      if (btnExport) btnExport.addEventListener("click", () => arena.exportAll && arena.exportAll());
       if (btnImport && fileInput) {
         btnImport.addEventListener("click", () => fileInput.click());
         fileInput.addEventListener("change", (e) => {
@@ -306,11 +324,9 @@
           reader.onload = (ev) => {
             try {
               const obj = JSON.parse(ev.target.result);
-              if (window.arena && arena.importAll) {
-                arena.importAll(obj);
-              }
-            } catch (err) {
-              window.showToast && window.showToast("Import-Datei ungültig", "error");
+              if (arena.importAll) arena.importAll(obj);
+            } catch {
+              window.showToast("Import-Datei ungültig", "error");
             }
           };
           reader.readAsText(file);
@@ -318,59 +334,21 @@
         });
       }
 
-      // Feld-Auswahl
+      /* Feld-Auswahl */
       const select = document.getElementById("arena-field-select");
       if (select) {
         select.addEventListener("change", () => {
           const val = select.value;
-          if (window.arena && typeof window.arena.setField === "function") {
-            window.arena.setField(val);
-          } else {
-            const wrapper = document.getElementById("arena-field-wrapper");
-            if (wrapper) wrapper.dataset.field = val;
-          }
+          if (arena.setField) arena.setField(val);
         });
       }
 
-      // Player-Card Buttons + Rating-Logik
+      /* PlayerCard Buttons */
       const btnCardCancel = document.getElementById("playercard-cancel");
       const btnCardSave = document.getElementById("playercard-save");
 
-      function recalcRating() {
-        const fields = [
-          "attr-pace",
-          "attr-dribble",
-          "attr-shot",
-          "attr-pass",
-          "attr-defense",
-          "attr-physical"
-        ];
-
-        const values = fields
-          .map(id => Number(document.getElementById(id).value))
-          .filter(v => Number.isFinite(v) && v > 0);
-
-        if (values.length === 0) {
-          document.getElementById("playercard-rating").textContent = "0";
-          return;
-        }
-
-        const avg = values.reduce((a, b) => a + b, 0) / values.length;
-        const rating = Math.round(avg);
-        document.getElementById("playercard-rating").textContent = rating;
-      }
-
-      ["attr-pace","attr-dribble","attr-shot","attr-pass","attr-defense","attr-physical"]
-        .forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.addEventListener("input", recalcRating);
-        });
-
       if (btnCardCancel) {
-        btnCardCancel.addEventListener("click", () => {
-          const backdrop = document.getElementById("playercard-backdrop");
-          if (backdrop) backdrop.hidden = true;
-        });
+        btnCardCancel.addEventListener("click", closePlayerCardModal);
       }
 
       if (btnCardSave) {
@@ -398,29 +376,23 @@
             notes: document.getElementById("playercard-notes").value
           };
 
-          if (window.arena && typeof window.arena.savePlayerCard === "function") {
-            window.arena.savePlayerCard(data);
-          }
+          if (arena.savePlayerCard) arena.savePlayerCard(data);
 
-          backdrop.hidden = true;
+          closePlayerCardModal();
         });
       }
 
-      // Analyse-Center
+      /* Analyse-Center */
       const btnAnalysis = document.getElementById("btn-analysis");
       const sidebar = document.getElementById("analysis-sidebar");
       const btnAnalysisClose = document.getElementById("analysis-close");
       const btnSnapshot = document.getElementById("analysis-export-snapshot");
 
       if (btnAnalysis && sidebar) {
-        btnAnalysis.addEventListener("click", () => {
-          sidebar.hidden = false;
-        });
+        btnAnalysis.addEventListener("click", () => sidebar.hidden = false);
       }
       if (btnAnalysisClose && sidebar) {
-        btnAnalysisClose.addEventListener("click", () => {
-          sidebar.hidden = true;
-        });
+        btnAnalysisClose.addEventListener("click", () => sidebar.hidden = true);
       }
       if (btnSnapshot) {
         btnSnapshot.addEventListener("click", () => {
@@ -435,7 +407,7 @@
           a.click();
           a.remove();
           URL.revokeObjectURL(url);
-          window.showToast && window.showToast("Snapshot exportiert", "success");
+          window.showToast("Snapshot exportiert", "success");
         });
       }
     });
