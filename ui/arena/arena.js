@@ -268,15 +268,15 @@ const arena = {
   // Long-Press → PlayerCard
   // ----------------------------------------
   _openPlayerCard(id) {
-  if (!id) return; // Schutz
+    if (!id || typeof id !== "string") return; // verhindert Auto-Öffnen
 
-  const ToniDB = getToniDB();
-  const data = ToniDB.getPlayer(id) || { id };
+    const ToniDB = getToniDB();
+    const data = ToniDB.getPlayer ? ToniDB.getPlayer(id) || { id } : { id };
 
-  if (window.openPlayerCardModal) {
-    window.openPlayerCardModal(data);
-  }
-}
+    if (window.openPlayerCardModal) {
+      window.openPlayerCardModal(data);
+    }
+  },
 
   savePlayerCard(data) {
     const ToniDB = getToniDB();
@@ -516,43 +516,4 @@ const arena = {
   _findPlayerAt(mx, my) {
     const HIT = 28;
     for (const id in this.players) {
-      const p = this.players[id];
-      const dx = mx - p.x;
-      const dy = my - p.y;
-      if (dx * dx + dy * dy < HIT * HIT) return id;
-    }
-    return null;
-  },
-
-  toast(msg, type = "info") {
-    if (!window.showToast) {
-      console.log("[TOAST]", msg);
-      return;
-    }
-    window.showToast(msg, type);
-  },
-
-  setTool(toolName) {
-    this.currentTool = toolName;
-    this.toast(`Tool: ${toolName}`, "info");
-  },
-
-  reset() {
-    const ToniDB = getToniDB();
-    if (ToniDB.clearPositions) {
-      ToniDB.clearPositions();
-    }
-    this._loadPlayersWithFormation();
-    this._pushHistory();
-    this.toast("Reset durchgeführt", "info");
-  },
-
-  setField(fieldKey) {
-    const wrapper = document.getElementById("arena-field-wrapper");
-    if (wrapper) wrapper.dataset.field = fieldKey;
-    this.toast(`Feld geändert: ${fieldKey}`, "info");
-  }
-};
-
-// global machen
-window.arena = arena;
+      const p = this
