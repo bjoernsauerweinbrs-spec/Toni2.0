@@ -13,12 +13,14 @@ const _fallbackToniDB = {
   getPositions: () => ({}),
   setPositions: () => {},
   getPlayers: () => ({}),
+  getPosition: () => null,
   setPlayer: () => {},
   setPlayers: () => {},
   snapshot: () => "{}",
   restoreFromSnapshot: () => false,
   exportAll: () => ({}),
-  importAll: () => false
+  importAll: () => false,
+  clearPositions: () => {}
 };
 
 function getToniEvents() {
@@ -266,15 +268,21 @@ const arena = {
   // Long-Press → PlayerCard
   // ----------------------------------------
   _openPlayerCard(id) {
+    if (!id) return; // Schutz
+
     const ToniDB = getToniDB();
-    const data = ToniDB.getPlayer(id) || { id };
+    const data = ToniDB.getPlayer ? ToniDB.getPlayer(id) || { id } : { id };
+
     if (window.openPlayerCardModal) {
       window.openPlayerCardModal(data);
     }
   },
 
   savePlayerCard(data) {
-    getToniDB().setPlayer(data.id, data);
+    const ToniDB = getToniDB();
+    if (ToniDB.setPlayer) {
+      ToniDB.setPlayer(data.id, data);
+    }
     this.toast("Spieler gespeichert", "success");
     this._pushHistory();
   },
@@ -502,11 +510,10 @@ const arena = {
     }
   },
 
- // ----------------------------------------
+  // ----------------------------------------
   // Utils
   // ----------------------------------------
   _findPlayerAt(mx, my) {
-    // größere Hitbox für Touch
     const HIT = 28;
     for (const id in this.players) {
       const p = this.players[id];
@@ -532,7 +539,9 @@ const arena = {
 
   reset() {
     const ToniDB = getToniDB();
-    ToniDB.clearPositions();
+    if (ToniDB.clearPositions) {
+      ToniDB.clearPositions();
+    }
     this._loadPlayersWithFormation();
     this._pushHistory();
     this.toast("Reset durchgeführt", "info");
