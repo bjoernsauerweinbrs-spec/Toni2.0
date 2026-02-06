@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Arena</title>
 
-  <!-- CSS laden -->
+  <!-- Haupt-CSS -->
   <link rel="stylesheet" href="arena.css">
 
-  <!-- Minimales Layout-Fallback, sorgt dafür, dass Canvas sichtbar ist -->
+  <!-- Fallback-Layout (sorgt dafür, dass das Spielfeld sichtbar ist) -->
   <style>
     html, body {
       height: 100%;
@@ -26,14 +26,14 @@
       user-select: none;
     }
 
-    /* Fallback-Höhe für das Spielfeld, kann in arena.css überschrieben werden */
     #arena-field-wrapper {
       width: 100%;
-      min-height: 600px;
+      min-height: 600px; /* anpassbar */
       position: relative;
+      flex: 1;
+      overflow: hidden;
     }
 
-    /* Canvas füllt Wrapper */
     canvas#arena-field {
       position: absolute;
       top: 0;
@@ -44,53 +44,97 @@
     }
   </style>
 </head>
-
 <body>
+  <div id="arena">
+    <!-- Toolbar -->
+    <div id="arena-toolbar" role="toolbar" aria-label="Arena Werkzeuge">
+      <button data-tool="move" class="active" aria-pressed="true">Spieler</button>
+      <button data-tool="line" aria-pressed="false">Linie</button>
+      <button data-tool="arrow" aria-pressed="false">Pfeil</button>
+      <button data-tool="delete" aria-pressed="false">Löschen</button>
+      <button data-tool="reset" aria-pressed="false">Reset</button>
 
-<div id="arena">
+      <select id="arena-field-select" aria-label="Feld auswählen">
+        <option value="standard">Standardfeld</option>
+        <option value="funino">Funino</option>
+        <option value="halle">Halle</option>
+        <option value="training">Training</option>
+        <option value="f-jugend">F‑Jugend</option>
+      </select>
+    </div>
 
-  <!-- Toolbar -->
-  <div id="arena-toolbar">
-    <button data-tool="move" class="active">Spieler</button>
-    <button data-tool="line">Linie</button>
-    <button data-tool="arrow">Pfeil</button>
-    <button data-tool="delete">Löschen</button>
-    <button data-tool="reset">Reset</button>
+    <!-- Spielfeld + Layer -->
+    <div id="arena-field-wrapper">
+      <!-- Canvas: ID muss mit arena.init übereinstimmen -->
+      <canvas id="arena-field" aria-label="Spielfeld"></canvas>
 
-    <select id="arena-field-select">
-      <option value="standard">Standardfeld</option>
-      <option value="funino">Funino</option>
-      <option value="halle">Halle</option>
-      <option value="training">Training</option>
-      <option value="f-jugend">F‑Jugend</option>
-    </select>
+      <!-- Optionale DOM-Layer (für Linien/Spieler-Overlays) -->
+      <div id="arena-lines" aria-hidden="true"></div>
+      <div id="arena-players" aria-hidden="true"></div>
+    </div>
   </div>
 
-  <!-- Spielfeld + Layer -->
-  <div id="arena-field-wrapper">
-    <!-- echtes Canvas, ID muss mit arena.init übereinstimmen -->
-    <canvas id="arena-field"></canvas>
+  <!-- Skripte: ToniDB (Stub/real) vor arena.js, dann Init -->
+  <script src="toni-db.js"></script>
+  <script src="arena.js"></script>
 
-    <!-- Layer für Linien und DOM-Spieler (optional, wird von CSS/JS genutzt) -->
-    <div id="arena-lines" aria-hidden="true"></div>
-    <div id="arena-players" aria-hidden="true"></div>
-  </div>
+  <!-- Init und kleine Toolbar-Interaktion (lokal, keine Abhängigkeit) -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Initialisierung der Arena-Engine (Canvas-ID muss übereinstimmen)
+      if (window.arena && typeof window.arena.init === "function") {
+        window.arena.init("arena-field");
+      } else {
+        console.warn("Arena nicht verfügbar oder arena.init fehlt");
+      }
 
-</div>
+      // Toolbar: active-Klasse & aria-pressed verwalten
+      const toolbar = document.getElementById("arena-toolbar");
+      if (toolbar) {
+        toolbar.addEventListener("click", (ev) => {
+          const btn = ev.target.closest("button[data-tool]");
+          if (!btn) return;
+          // Toggle active for mutually exclusive tools (move/line/arrow/delete)
+          const tool = btn.getAttribute("data-tool");
+          if (tool === "reset") {
+            // Reset-Event an die Engine senden, falls vorhanden
+            if (window.arena && typeof window.arena.reset === "function") {
+              window.arena.reset();
+            } else {
+              // Fallback: reload positions from ToniDB if available
+              if (window.ToniDB && window.arena && typeof window.arena._loadPlayersWithFormation === "function") {
+                window.arena._loadPlayersWithFormation();
+              }
+            }
+            return;
+          }
 
-<!-- Reihenfolge der Skripte: ToniDB zuerst, dann Arena-Engine, dann Init -->
-<script src="toni-db.js"></script>
-<script src="arena.js"></script>
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    if (window.arena && typeof window.arena.init === "function") {
-      // ID muss mit dem Canvas oben übereinstimmen
-      window.arena.init("arena-field");
-    } else {
-      console.warn("Arena nicht verfügbar oder arena.init fehlt");
-    }
-  });
-</script>
+          // Set active state
+          toolbar.querySelectorAll("button[data-tool]").forEach(b => {
+            b.classList.remove("active");
+            b.setAttribute("aria-pressed", "false");
+          });
+          btn.classList.add("active");
+          btn.setAttribute("aria-pressed", "true");
 
+          // Optional: informiere die Engine über Toolwechsel
+          if (window.arena && typeof window.arena.setTool === "function") {
+            window.arena.setTool(tool);
+          }
+        });
+      }
+
+      // Feld-Auswahl: informiere Engine (falls unterstützt)
+      const select = document.getElementById("arena-field-select");
+      if (select) {
+        select.addEventListener("change", () => {
+          const val = select.value;
+          if (window.arena && typeof window.arena.setField === "function") {
+            window.arena.setField(val);
+          }
+        });
+      }
+    });
+  </script>
 </body>
 </html>
