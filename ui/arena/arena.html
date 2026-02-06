@@ -3,115 +3,261 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Arena</title>
+  <title>Toni 2.0 – Arena</title>
 
-  <!-- Haupt-CSS -->
   <link rel="stylesheet" href="arena.css">
 
-  <!-- Fallback-Layout (sorgt dafür, dass das Spielfeld sichtbar ist) -->
+  <!-- Fallback-Layout (Basis, Rest in arena.css) -->
   <style>
     html, body {
       height: 100%;
       margin: 0;
       box-sizing: border-box;
+      background: #0b0b0f;
+      color: #f5f5f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-
     #arena {
       width: 100%;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      background: #1a1a1a;
-      color: white;
+      background: radial-gradient(circle at top, #1f2933 0, #050608 55%);
+      color: inherit;
       user-select: none;
     }
-
+    #arena-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
     #arena-field-wrapper {
       width: 100%;
-      min-height: 600px; /* anpassbar */
+      min-height: 600px;
       position: relative;
       flex: 1;
       overflow: hidden;
     }
-
-    /* Canvas füllt Wrapper; tatsächliche Pixelgröße wird per JS an devicePixelRatio angepasst */
     canvas#arena-field {
       position: absolute;
-      top: 0;
-      left: 0;
+      inset: 0;
       width: 100%;
       height: 100%;
       display: block;
     }
-
-    /* kleine Hilfen für data-field (optional, du kannst in arena.css darauf reagieren) */
-    #arena-field-wrapper[data-field="halle"] { background-image: url('fields/halle.png'); background-size: cover; }
-    #arena-field-wrapper[data-field="funino"] { background-image: url('fields/funino.png'); background-size: cover; }
+    #arena-field-wrapper[data-field="halle"] { background-size: cover; }
+    #arena-field-wrapper[data-field="funino"] { background-size: cover; }
   </style>
 </head>
 <body>
   <div id="arena">
     <!-- Toolbar -->
-    <div id="arena-toolbar" role="toolbar" aria-label="Arena Werkzeuge">
-      <button data-tool="move" class="active" aria-pressed="true">Spieler</button>
-      <button data-tool="line" aria-pressed="false">Linie</button>
-      <button data-tool="arrow" aria-pressed="false">Pfeil</button>
-      <button data-tool="delete" aria-pressed="false">Löschen</button>
-      <button data-tool="reset" aria-pressed="false">Reset</button>
+    <header id="arena-toolbar" role="toolbar" aria-label="Arena Werkzeuge">
+      <div class="toolbar-group" aria-label="Tools">
+        <button type="button" class="toolbar-btn active" data-tool="move" aria-pressed="true" title="Spieler bewegen">
+          <span class="icon">⚽</span><span class="label">Spieler</span>
+        </button>
+        <button type="button" class="toolbar-btn" data-tool="line" aria-pressed="false" title="Linie zeichnen">
+          <span class="icon">〰️</span><span class="label">Linie</span>
+        </button>
+        <button type="button" class="toolbar-btn" data-tool="arrow" aria-pressed="false" title="Pfeil zeichnen">
+          <span class="icon">➡️</span><span class="label">Pfeil</span>
+        </button>
+        <button type="button" class="toolbar-btn" data-tool="delete" aria-pressed="false" title="Löschen">
+          <span class="icon">🧹</span><span class="label">Löschen</span>
+        </button>
+      </div>
 
-      <select id="arena-field-select" aria-label="Feld auswählen">
-        <option value="standard">Standardfeld</option>
-        <option value="funino">Funino</option>
-        <option value="halle">Halle</option>
-        <option value="training">Training</option>
-        <option value="f-jugend">F‑Jugend</option>
-      </select>
+      <div class="toolbar-group" aria-label="Bearbeiten">
+        <button type="button" class="toolbar-btn" id="btn-undo" title="Rückgängig">
+          <span class="icon">↩️</span><span class="label">Undo</span>
+        </button>
+        <button type="button" class="toolbar-btn" id="btn-redo" title="Wiederholen">
+          <span class="icon">↪️</span><span class="label">Redo</span>
+        </button>
+        <button type="button" class="toolbar-btn" data-tool="reset" title="Reset">
+          <span class="icon">♻️</span><span class="label">Reset</span>
+        </button>
+      </div>
+
+      <div class="toolbar-group" aria-label="Daten">
+        <button type="button" class="toolbar-btn" id="btn-export" title="Formation exportieren">
+          <span class="icon">💾</span><span class="label">Export</span>
+        </button>
+        <button type="button" class="toolbar-btn" id="btn-import" title="Formation importieren">
+          <span class="icon">📂</span><span class="label">Import</span>
+        </button>
+        <input type="file" id="arena-import-file" accept="application/json" style="display:none" />
+      </div>
+
+      <div class="toolbar-group" aria-label="Analyse & Feld">
+        <button type="button" class="toolbar-btn" id="btn-analysis" title="Analysezentrum öffnen">
+          <span class="icon">📊</span><span class="label">Analyse</span>
+        </button>
+
+        <label class="field-select-label">
+          <span class="label">Feld</span>
+          <select id="arena-field-select" aria-label="Feld auswählen">
+            <option value="standard">Standardfeld</option>
+            <option value="funino">Funino</option>
+            <option value="halle">Halle</option>
+            <option value="training">Training</option>
+            <option value="f-jugend">F‑Jugend</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <div id="arena-main">
+      <!-- Spielfeld -->
+      <div id="arena-field-wrapper" data-field="standard">
+        <canvas id="arena-field" aria-label="Spielfeld"></canvas>
+        <div id="arena-lines" aria-hidden="true"></div>
+        <div id="arena-players" aria-hidden="true"></div>
+      </div>
     </div>
 
-    <!-- Spielfeld + Layer -->
-    <div id="arena-field-wrapper">
-      <!-- Canvas: ID muss mit arena.init übereinstimmen -->
-      <canvas id="arena-field" aria-label="Spielfeld"></canvas>
+    <!-- Toast-Container -->
+    <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
-      <!-- Optionale DOM-Layer (für Linien/Spieler-Overlays) -->
-      <div id="arena-lines" aria-hidden="true"></div>
-      <div id="arena-players" aria-hidden="true"></div>
+    <!-- FIFA Player-Card Modal (Skeleton, Logik in arena.js / extern) -->
+    <div id="playercard-backdrop" class="modal-backdrop" hidden>
+      <div id="playercard-modal" class="playercard-modal" role="dialog" aria-modal="true" aria-labelledby="playercard-title">
+        <div class="playercard-header">
+          <div class="playercard-rating">
+            <span id="playercard-rating">90</span>
+            <span class="playercard-pos" id="playercard-role">ST</span>
+          </div>
+          <div class="playercard-avatar">
+            <div class="avatar-placeholder">👤</div>
+          </div>
+        </div>
+        <div class="playercard-body">
+          <h2 id="playercard-title">Spielername</h2>
+          <div class="playercard-meta">
+            <label>
+              <span>Nummer</span>
+              <input type="text" id="playercard-number" />
+            </label>
+            <label>
+              <span>Rolle</span>
+              <input type="text" id="playercard-role-input" />
+            </label>
+            <label>
+              <span>Farbe</span>
+              <input type="text" id="playercard-color" placeholder="z.B. #ff4444" />
+            </label>
+          </div>
+          <div class="playercard-attributes">
+            <div class="attr-col">
+              <label><span>TEM</span><input type="number" id="attr-pace" min="0" max="99" /></label>
+              <label><span>DRI</span><input type="number" id="attr-dribble" min="0" max="99" /></label>
+              <label><span>SHO</span><input type="number" id="attr-shot" min="0" max="99" /></label>
+            </div>
+            <div class="attr-col">
+              <label><span>PAS</span><input type="number" id="attr-pass" min="0" max="99" /></label>
+              <label><span>DEF</span><input type="number" id="attr-defense" min="0" max="99" /></label>
+              <label><span>PHY</span><input type="number" id="attr-physical" min="0" max="99" /></label>
+            </div>
+          </div>
+          <div class="playercard-notes">
+            <label>
+              <span>Notizen</span>
+              <textarea id="playercard-notes" rows="3"></textarea>
+            </label>
+          </div>
+        </div>
+        <div class="playercard-footer">
+          <button type="button" id="playercard-cancel">Abbrechen</button>
+          <button type="button" id="playercard-save" class="primary">Speichern</button>
+        </div>
+      </div>
     </div>
+
+    <!-- Analyse-Center Sidebar (Skeleton) -->
+    <aside id="analysis-sidebar" class="analysis-sidebar" aria-label="Analysezentrum" hidden>
+      <header class="analysis-header">
+        <h2>Analysezentrum</h2>
+        <button type="button" id="analysis-close" title="Schließen">✕</button>
+      </header>
+      <section class="analysis-section">
+        <h3>Formation</h3>
+        <div id="analysis-formation-meta">
+          <!-- z.B. Name, Datum, Version -->
+        </div>
+      </section>
+      <section class="analysis-section">
+        <h3>Linien</h3>
+        <div id="analysis-lines">
+          <!-- Spieler pro Linie, Durchschnitt X/Y -->
+        </div>
+      </section>
+      <section class="analysis-section">
+        <h3>Notizen</h3>
+        <textarea id="analysis-notes" rows="4" placeholder="Analyse, Coaching-Punkte, Trigger ..."></textarea>
+      </section>
+      <section class="analysis-section">
+        <button type="button" id="analysis-export-snapshot">Snapshot exportieren</button>
+      </section>
+    </aside>
   </div>
 
-  <!-- Skripte: ToniDB (mit localStorage) vor arena.js, dann Init -->
   <script src="toni-db.js"></script>
   <script src="arena.js"></script>
 
-  <!-- Init, DPR-Resize-Patch und Toolbar-Interaktion -->
   <script>
+    // Toast-Helfer, von arena.toast() genutzt
+    window.showToast = function (msg, type = "info") {
+      const container = document.getElementById("toast-container");
+      if (!container) return;
+      const el = document.createElement("div");
+      el.className = "toast toast-" + type;
+      el.textContent = msg;
+      container.appendChild(el);
+      requestAnimationFrame(() => el.classList.add("visible"));
+      setTimeout(() => {
+        el.classList.remove("visible");
+        setTimeout(() => el.remove(), 300);
+      }, 2500);
+    };
+
+    // Player-Card Modal API (von arena.js aufgerufen)
+    window.openPlayerCardModal = function (player) {
+      const backdrop = document.getElementById("playercard-backdrop");
+      if (!backdrop) return;
+      backdrop.hidden = false;
+
+      const id = player.id || "";
+      document.getElementById("playercard-title").textContent = id;
+      document.getElementById("playercard-number").value = player.number || "";
+      document.getElementById("playercard-role-input").value = player.role || "";
+      document.getElementById("playercard-color").value = player.color || "";
+      document.getElementById("playercard-rating").textContent = player.rating != null ? player.rating : "90";
+
+      const attrs = player.attributes || {};
+      document.getElementById("attr-pace").value = attrs.pace ?? "";
+      document.getElementById("attr-dribble").value = attrs.dribble ?? "";
+      document.getElementById("attr-shot").value = attrs.shot ?? "";
+      document.getElementById("attr-pass").value = attrs.pass ?? "";
+      document.getElementById("attr-defense").value = attrs.defense ?? "";
+      document.getElementById("attr-physical").value = attrs.physical ?? "";
+      document.getElementById("playercard-notes").value = player.notes || "";
+
+      backdrop.dataset.playerId = id;
+    };
+
+    function closePlayerCardModal() {
+      const backdrop = document.getElementById("playercard-backdrop");
+      if (backdrop) backdrop.hidden = true;
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
-      // 1) Init der Arena-Engine (Canvas-ID muss übereinstimmen)
       if (window.arena && typeof window.arena.init === "function") {
         window.arena.init("arena-field");
-      } else {
-        console.warn("Arena nicht verfügbar oder arena.init fehlt");
       }
 
-      // 2) DPR-Resize-Patch: ruft arena._resizeCanvas() bei Resize und setzt initial
-      (function applyDPRResizePatch() {
-        const canvas = document.getElementById("arena-field");
-        if (!canvas || !window.arena) return;
-
-        // call engine resize once (engine implements DPR-aware resize)
-        if (typeof window.arena._resizeCanvas === "function") {
-          window.arena._resizeCanvas();
-        }
-
-        // ensure engine resize is called on window resize
-        window.addEventListener("resize", () => {
-          if (typeof window.arena._resizeCanvas === "function") {
-            window.arena._resizeCanvas();
-          }
-        });
-      })();
-
-      // 3) Toolbar: active-Klasse & aria-pressed verwalten
+      // Toolbar Tool-Wechsel
       const toolbar = document.getElementById("arena-toolbar");
       if (toolbar) {
         toolbar.addEventListener("click", (ev) => {
@@ -120,19 +266,12 @@
           const tool = btn.getAttribute("data-tool");
 
           if (tool === "reset") {
-            // Reset-Event an die Engine senden, falls vorhanden
             if (window.arena && typeof window.arena.reset === "function") {
               window.arena.reset();
-            } else if (window.ToniDB && typeof window.ToniDB.clearPositions === "function") {
-              window.ToniDB.clearPositions();
-              if (window.arena && typeof window.arena._loadPlayersWithFormation === "function") {
-                window.arena._loadPlayersWithFormation();
-              }
             }
             return;
           }
 
-          // Set active state (mutually exclusive)
           toolbar.querySelectorAll("button[data-tool]").forEach(b => {
             b.classList.remove("active");
             b.setAttribute("aria-pressed", "false");
@@ -140,14 +279,46 @@
           btn.classList.add("active");
           btn.setAttribute("aria-pressed", "true");
 
-          // Informiere die Engine über Toolwechsel (falls unterstützt)
           if (window.arena && typeof window.arena.setTool === "function") {
             window.arena.setTool(tool);
           }
         });
       }
 
-      // 4) Feld-Auswahl: informiere Engine (falls unterstützt)
+      // Undo / Redo
+      const btnUndo = document.getElementById("btn-undo");
+      const btnRedo = document.getElementById("btn-redo");
+      if (btnUndo) btnUndo.addEventListener("click", () => window.arena && arena.undo && arena.undo());
+      if (btnRedo) btnRedo.addEventListener("click", () => window.arena && arena.redo && arena.redo());
+
+      // Export / Import
+      const btnExport = document.getElementById("btn-export");
+      const btnImport = document.getElementById("btn-import");
+      const fileInput = document.getElementById("arena-import-file");
+
+      if (btnExport) btnExport.addEventListener("click", () => window.arena && arena.exportAll && arena.exportAll());
+      if (btnImport && fileInput) {
+        btnImport.addEventListener("click", () => fileInput.click());
+        fileInput.addEventListener("change", (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            try {
+              const obj = JSON.parse(ev.target.result);
+              if (window.arena && arena.importAll) {
+                arena.importAll(obj);
+              }
+            } catch (err) {
+              window.showToast && window.showToast("Import-Datei ungültig", "error");
+            }
+          };
+          reader.readAsText(file);
+          fileInput.value = "";
+        });
+      }
+
+      // Feld-Auswahl
       const select = document.getElementById("arena-field-select");
       if (select) {
         select.addEventListener("change", () => {
@@ -158,6 +329,72 @@
             const wrapper = document.getElementById("arena-field-wrapper");
             if (wrapper) wrapper.dataset.field = val;
           }
+        });
+      }
+
+      // Player-Card Buttons
+      const btnCardCancel = document.getElementById("playercard-cancel");
+      const btnCardSave = document.getElementById("playercard-save");
+      if (btnCardCancel) btnCardCancel.addEventListener("click", () => closePlayerCardModal());
+      if (btnCardSave) btnCardSave.addEventListener("click", () => {
+        const backdrop = document.getElementById("playercard-backdrop");
+        if (!backdrop) return;
+        const id = backdrop.dataset.playerId;
+        if (!id) return;
+
+        const data = {
+          id,
+          number: document.getElementById("playercard-number").value,
+          role: document.getElementById("playercard-role-input").value,
+          color: document.getElementById("playercard-color").value,
+          rating: Number(document.getElementById("playercard-rating").textContent) || null,
+          attributes: {
+            pace: Number(document.getElementById("attr-pace").value) || null,
+            dribble: Number(document.getElementById("attr-dribble").value) || null,
+            shot: Number(document.getElementById("attr-shot").value) || null,
+            pass: Number(document.getElementById("attr-pass").value) || null,
+            defense: Number(document.getElementById("attr-defense").value) || null,
+            physical: Number(document.getElementById("attr-physical").value) || null
+          },
+          notes: document.getElementById("playercard-notes").value
+        };
+
+        if (window.arena && typeof window.arena.savePlayerCard === "function") {
+          window.arena.savePlayerCard(data);
+        }
+        closePlayerCardModal();
+      });
+
+      // Analyse-Center
+      const btnAnalysis = document.getElementById("btn-analysis");
+      const sidebar = document.getElementById("analysis-sidebar");
+      const btnAnalysisClose = document.getElementById("analysis-close");
+      const btnSnapshot = document.getElementById("analysis-export-snapshot");
+
+      if (btnAnalysis && sidebar) {
+        btnAnalysis.addEventListener("click", () => {
+          sidebar.hidden = false;
+        });
+      }
+      if (btnAnalysisClose && sidebar) {
+        btnAnalysisClose.addEventListener("click", () => {
+          sidebar.hidden = true;
+        });
+      }
+      if (btnSnapshot) {
+        btnSnapshot.addEventListener("click", () => {
+          if (!window.ToniDB || !ToniDB.exportAll) return;
+          const payload = ToniDB.exportAll();
+          const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `toni-snapshot-${Date.now()}.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          window.showToast && window.showToast("Snapshot exportiert", "success");
         });
       }
     });
