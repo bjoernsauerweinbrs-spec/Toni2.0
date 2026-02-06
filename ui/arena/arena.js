@@ -1,18 +1,21 @@
 // ============================================
-// TONI 2.0 – ARENA ENGINE (Modern Version)
-// UX-Modell C: Klick = Auswahl, Long-Press = PlayerCard,
-// Drag = Bewegung, Undo/Redo, ToniDB v2 Integration,
-// Analyse-Hooks, Toast-System, Touch-Optimierung
+// TONI 2.0 – ARENA ENGINE (Teil 1/4)
+// Modern, robust, mit Guards gegen Auto-Open,
+// Long-Press, Drag, Undo/Redo, ToniDB-Integration
 // ============================================
 
-// Lokale Fallbacks
-const _fallbackToniEvents = { on: () => {}, emit: () => {} };
+// Lokale Fallbacks (sicher, falls ToniEvents/ToniDB fehlen)
+const _fallbackToniEvents = {
+  on: () => {},
+  emit: () => {}
+};
 const _fallbackToniDB = {
   data: { squad: {}, positions: {}, players: {} },
   savePosition: () => {},
   getPositions: () => ({}),
   setPositions: () => {},
   getPlayers: () => ({}),
+  getPlayer: () => null,
   getPosition: () => null,
   setPlayer: () => {},
   setPlayers: () => {},
@@ -31,15 +34,15 @@ function getToniDB() {
 }
 
 const arena = {
-  // Canvas
+  // Canvas + Context
   canvas: null,
   ctx: null,
 
-  // Spieler
+  // Spieler-Daten
   players: {}, // { id: { x,y,color,line } }
   selectedPlayer: null,
 
-  // Drag
+  // Dragging
   dragging: null,
   offsetX: 0,
   offsetY: 0,
@@ -66,7 +69,7 @@ const arena = {
   init(canvasId) {
     this.canvas = document.getElementById(canvasId);
     if (!this.canvas) {
-      console.error("[ARENA] Canvas nicht gefunden");
+      console.error("[ARENA] Canvas nicht gefunden:", canvasId);
       return;
     }
 
@@ -75,11 +78,17 @@ const arena = {
     this._resizeCanvas();
     window.addEventListener("resize", () => this._resizeCanvas());
 
+    // Lade Spieler/Formation aus ToniDB
     this._loadPlayersWithFormation();
+
+    // Pointer / Touch Events
     this._setupPointerEvents();
+
+    // KI / DB Listener
     this._setupAIListeners();
     this._setupDBListeners();
 
+    // Start Render Loop
     requestAnimationFrame(() => this._render());
     console.log("%c[TONI 2.0] Arena geladen", "color:#00ff88");
   },
@@ -105,7 +114,7 @@ const arena = {
   },
 
   // ----------------------------------------
-  // Formation laden
+  // Formation laden (Positionen aus ToniDB oder Default-Formation)
   // ----------------------------------------
   _loadPlayersWithFormation() {
     const ToniDB = getToniDB();
@@ -148,7 +157,7 @@ const arena = {
     this.players = {};
 
     homeStarters.forEach((id, i) => {
-      const saved = ToniDB.getPosition(id);
+      const saved = ToniDB.getPosition ? ToniDB.getPosition(id) : null;
       const f = formationHome[i] || { x: 0.5, y: 0.5, line: "midfield" };
       this.players[id] = {
         x: saved?.x ?? f.x * w,
@@ -159,7 +168,7 @@ const arena = {
     });
 
     homeBench.forEach((id, i) => {
-      const saved = ToniDB.getPosition(id);
+      const saved = ToniDB.getPosition ? ToniDB.getPosition(id) : null;
       const baseX = 0.10 * w;
       const baseY = (0.10 + i * 0.07) * h;
       this.players[id] = {
@@ -171,7 +180,7 @@ const arena = {
     });
 
     awayStarters.forEach((id, i) => {
-      const saved = ToniDB.getPosition(id);
+      const saved = ToniDB.getPosition ? ToniDB.getPosition(id) : null;
       const f = formationAway[i] || { x: 0.7, y: 0.5, line: "midfield" };
       this.players[id] = {
         x: saved?.x ?? f.x * w,
@@ -212,12 +221,12 @@ const arena = {
 
     // Long-Press starten
     this.longPressActive = false;
+    clearTimeout(this.longPressTimer);
     this.longPressTimer = setTimeout(() => {
       this.longPressActive = true;
       this._openPlayerCard(hit);
     }, this.LONG_PRESS_TIME);
-  },
-
+    },
   _onPointerMove(e) {
     if (!this.dragging) return;
     if (this.longPressActive) return;
@@ -226,18 +235,30 @@ const arena = {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    const dx = mx - (this.players[this.dragging].x + this.offsetX);
-    const dy = my - (this.players[this.dragging].y + this.offsetY);
+    const p = this.players[this.dragging];
+    if (!p) return;
 
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+    const newX = mx - this.offsetX;
+    const newY = my - this.offsetY;
+
+    // Bewegung erkannt
+    const dx = newX - p.x;
+    const dy = newY - p.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
       this.dragMoved = true;
       clearTimeout(this.longPressTimer);
     }
 
-    this.players[this.dragging].x = mx - this.offsetX;
-    this.players[this.dragging].y = my - this.offsetY;
+    p.x = newX;
+    p.y = newY;
 
-    getToniDB().savePosition(this.dragging, this.players[this.dragging].x, this.players[this.dragging].y);
+    // Persistente Speicherung der Position (leicht throttlen falls nötig)
+    try {
+      const ToniDB = getToniDB();
+      if (ToniDB.savePosition) ToniDB.savePosition(this.dragging, p.x, p.y);
+    } catch (err) {
+      console.warn("[ARENA] savePosition failed", err);
+    }
   },
 
   _onPointerUp(e) {
@@ -246,6 +267,7 @@ const arena = {
     if (!this.dragging) return;
 
     if (!this.dragMoved && !this.longPressActive) {
+      // kurzer Klick -> Auswahl
       this._selectPlayer(this.dragging);
     }
 
@@ -254,6 +276,8 @@ const arena = {
     }
 
     this.dragging = null;
+    this.dragMoved = false;
+    this.longPressActive = false;
   },
 
   // ----------------------------------------
@@ -265,294 +289,110 @@ const arena = {
   },
 
   // ----------------------------------------
-  // Long-Press → PlayerCard
+  // PlayerCard öffnen (Long-Press)
   // ----------------------------------------
   _openPlayerCard(id) {
-    if (!id || typeof id !== "string") return; // verhindert Auto-Öffnen
+    // Schutz: niemals ohne gültige ID öffnen
+    if (!id || (typeof id !== "string" && typeof id !== "number")) return;
 
     const ToniDB = getToniDB();
-    const data = ToniDB.getPlayer ? ToniDB.getPlayer(id) || { id } : { id };
+    const player = (ToniDB.getPlayer && ToniDB.getPlayer(id)) || { id };
 
     if (window.openPlayerCardModal) {
-      window.openPlayerCardModal(data);
+      try {
+        window.openPlayerCardModal(player);
+      } catch (err) {
+        console.error("[ARENA] openPlayerCardModal failed", err);
+      }
+    } else {
+      console.warn("[ARENA] openPlayerCardModal not defined");
     }
   },
 
+  // Save aus PlayerCard
   savePlayerCard(data) {
-    const ToniDB = getToniDB();
-    if (ToniDB.setPlayer) {
-      ToniDB.setPlayer(data.id, data);
+    if (!data || !data.id) {
+      this.toast("Kein Spieler zum Speichern angegeben", "error");
+      return;
     }
-    this.toast("Spieler gespeichert", "success");
-    this._pushHistory();
+
+    try {
+      const ToniDB = getToniDB();
+      if (ToniDB.setPlayer) {
+        ToniDB.setPlayer(data.id, data);
+      } else {
+        console.warn("[ARENA] ToniDB.setPlayer nicht vorhanden");
+      }
+      this.toast("Spieler gespeichert", "success");
+      this._pushHistory();
+    } catch (err) {
+      console.error("[ARENA] savePlayerCard error", err);
+      this.toast("Speichern fehlgeschlagen", "error");
+    }
   },
 
   // ----------------------------------------
-  // Undo/Redo
+  // Undo / Redo (History)
   // ----------------------------------------
   _pushHistory() {
-    const ToniDB = getToniDB();
-    const snap = ToniDB.snapshot();
-    this.history.past.push(snap);
-    this.history.future = [];
+    try {
+      const ToniDB = getToniDB();
+      const snap = ToniDB.snapshot ? ToniDB.snapshot() : JSON.stringify(ToniDB.data || {});
+      this.history.past.push(snap);
+      // Begrenze History-Größe
+      if (this.history.past.length > 50) this.history.past.shift();
+      this.history.future = [];
+    } catch (err) {
+      console.warn("[ARENA] _pushHistory failed", err);
+    }
   },
 
   undo() {
-    if (!this.history.past.length) return;
-    const ToniDB = getToniDB();
-    const current = ToniDB.snapshot();
-    this.history.future.push(current);
+    if (!this.history.past.length) {
+      this.toast("Nichts zum Rückgängig machen", "info");
+      return;
+    }
+    try {
+      const ToniDB = getToniDB();
+      const current = ToniDB.snapshot ? ToniDB.snapshot() : JSON.stringify(ToniDB.data || {});
+      this.history.future.push(current);
 
-    const prev = this.history.past.pop();
-    ToniDB.restoreFromSnapshot(prev);
-    this._loadPlayersWithFormation();
-    this.toast("Undo", "info");
+      const prev = this.history.past.pop();
+      if (ToniDB.restoreFromSnapshot) {
+        ToniDB.restoreFromSnapshot(prev);
+      } else {
+        console.warn("[ARENA] restoreFromSnapshot nicht vorhanden");
+      }
+      this._loadPlayersWithFormation();
+      this.toast("Undo", "info");
+    } catch (err) {
+      console.error("[ARENA] undo failed", err);
+      this.toast("Undo fehlgeschlagen", "error");
+    }
   },
 
   redo() {
-    if (!this.history.future.length) return;
-    const ToniDB = getToniDB();
-    const current = ToniDB.snapshot();
-    this.history.past.push(current);
-
-    const next = this.history.future.pop();
-    ToniDB.restoreFromSnapshot(next);
-    this._loadPlayersWithFormation();
-    this.toast("Redo", "info");
-  },
-
-  // ----------------------------------------
-  // Export / Import
-  // ----------------------------------------
-  exportAll() {
-    const ToniDB = getToniDB();
-    const payload = ToniDB.exportAll();
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `toni-export-${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    this.toast("Export erfolgreich", "success");
-  },
-
-  importAll(obj) {
-    const ToniDB = getToniDB();
-    try {
-      ToniDB.importAll(obj);
-      this._loadPlayersWithFormation();
-      this.toast("Import erfolgreich", "success");
-      this._pushHistory();
-    } catch (e) {
-      this.toast("Import fehlgeschlagen", "error");
-    }
-  },
-
-  // ----------------------------------------
-  // Analyse-Hooks
-  // ----------------------------------------
-  _setupDBListeners() {
-    const ToniEvents = getToniEvents();
-    ToniEvents.on("positions:changed", () => {
-      ToniEvents.emit("analysis:update", {
-        players: getToniDB().getPlayers(),
-        positions: getToniDB().getPositions()
-      });
-    });
-    ToniEvents.on("players:changed", () => {
-      ToniEvents.emit("analysis:update", {
-        players: getToniDB().getPlayers(),
-        positions: getToniDB().getPositions()
-      });
-    });
-  },
-
-  // ----------------------------------------
-  // KI-Events
-  // ----------------------------------------
-  _setupAIListeners() {
-    const ToniEvents = getToniEvents();
-    ToniEvents.on("ai:move", (payload) => {
-      const dir = payload?.direction;
-      if (!dir) return;
-      this._applyFormationShift(dir);
-    });
-  },
-
-  _applyFormationShift(direction) {
-    const dpr = window.devicePixelRatio || 1;
-    const w = this.canvas.width / dpr;
-    const h = this.canvas.height / dpr;
-
-    const shift = {
-      forward: { dx: w * 0.03, dy: 0 },
-      back: { dx: -w * 0.03, dy: 0 },
-      left: { dx: 0, dy: -h * 0.03 },
-      right: { dx: 0, dy: h * 0.03 }
-    }[direction];
-
-    if (!shift) return;
-
-    this.animationTargets = {};
-    this.animating = true;
-
-    for (const id in this.players) {
-      const p = this.players[id];
-      let factor = 1;
-      if (p.line === "keeper") factor = 0.3;
-      if (p.line === "bench") factor = 0;
-
-      this.animationTargets[id] = {
-        x: p.x + shift.dx * factor,
-        y: p.y + shift.dy * factor
-      };
-    }
-  },
-
-  // ----------------------------------------
-  // Render
-  // ----------------------------------------
-  _render() {
-    this._updateAnimation();
-    this._drawField();
-    this._drawPlayers();
-    requestAnimationFrame(() => this._render());
-  },
-
-  _updateAnimation() {
-    if (!this.animating) return;
-    let moving = false;
-
-    for (const id in this.animationTargets) {
-      const t = this.animationTargets[id];
-      const p = this.players[id];
-      const dx = t.x - p.x;
-      const dy = t.y - p.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < 1) {
-        p.x = t.x;
-        p.y = t.y;
-        continue;
-      }
-
-      p.x += dx * 0.15;
-      p.y += dy * 0.15;
-      moving = true;
-    }
-
-    if (!moving) {
-      this.animating = false;
-      this.animationTargets = {};
-    }
-  },
-
-  _drawField() {
-    const ctx = this.ctx;
-    const dpr = window.devicePixelRatio || 1;
-    const w = this.canvas.width / dpr;
-    const h = this.canvas.height / dpr;
-
-    ctx.save();
-    ctx.fillStyle = "#0b5e20";
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 3;
-
-    ctx.strokeRect(20, 20, w - 40, h - 40);
-
-    ctx.beginPath();
-    ctx.moveTo(w / 2, 20);
-    ctx.lineTo(w / 2, h - 20);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(w / 2, h / 2, 80, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.strokeRect(20, h / 2 - 100, 120, 200);
-    ctx.strokeRect(w - 140, h / 2 - 100, 120, 200);
-
-    ctx.strokeRect(20, h / 2 - 40, 60, 80);
-    ctx.strokeRect(w - 80, h / 2 - 40, 60, 80);
-    ctx.restore();
-  },
-
-  _drawPlayers() {
-    const ctx = this.ctx;
-
-    for (const id in this.players) {
-      const p = this.players[id];
-
-      ctx.beginPath();
-      ctx.fillStyle = p.color === "red" ? "#ff4444" : "#448aff";
-      ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (id === this.selectedPlayer) {
-        ctx.strokeStyle = "#ffd700";
-        ctx.lineWidth = 4;
-        ctx.stroke();
-      } else if (p.line === "keeper") {
-        ctx.strokeStyle = "#ffd700";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = "white";
-      ctx.font = "12px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(id, p.x, p.y + 4);
-    }
-  },
-
-  // ----------------------------------------
-  // Utils
-  // ----------------------------------------
-  _findPlayerAt(mx, my) {
-    const HIT = 28;
-    for (const id in this.players) {
-     const p = this.players[id];
-      const dx = mx - p.x;
-      const dy = my - p.y;
-      if (dx * dx + dy * dy < HIT * HIT) return id;
-    }
-    return null;
-  },
-
-  toast(msg, type = "info") {
-    if (!window.showToast) {
-      console.log("[TOAST]", msg);
+    if (!this.history.future.length) {
+      this.toast("Nichts zum Wiederherstellen", "info");
       return;
     }
-    window.showToast(msg, type);
-  },
+    try {
+      const ToniDB = getToniDB();
+      const current = ToniDB.snapshot ? ToniDB.snapshot() : JSON.stringify(ToniDB.data || {});
+      this.history.past.push(current);
 
-  setTool(toolName) {
-    this.currentTool = toolName;
-    this.toast(`Tool: ${toolName}`, "info");
-  },
-
-  reset() {
-    const ToniDB = getToniDB();
-    if (ToniDB.clearPositions) {
-      ToniDB.clearPositions();
+      const next = this.history.future.pop();
+      if (ToniDB.restoreFromSnapshot) {
+        ToniDB.restoreFromSnapshot(next);
+      } else {
+        console.warn("[ARENA] restoreFromSnapshot nicht vorhanden");
+      }
+      this._loadPlayersWithFormation();
+      this.toast("Redo", "info");
+    } catch (err) {
+      console.error("[ARENA] redo failed", err);
+      this.toast("Redo fehlgeschlagen", "error");
     }
-    this._loadPlayersWithFormation();
-    this._pushHistory();
-    this.toast("Reset durchgeführt", "info");
   },
-
-  setField(fieldKey) {
-    const wrapper = document.getElementById("arena-field-wrapper");
-    if (wrapper) wrapper.dataset.field = fieldKey;
-    this.toast(`Feld geändert: ${fieldKey}`, "info");
-  }
-};
-
-// global machen
-window.arena = arena;
+  
+  },
