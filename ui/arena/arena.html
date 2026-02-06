@@ -2,27 +2,53 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Arena</title>
 
   <!-- CSS laden -->
   <link rel="stylesheet" href="arena.css">
+
+  <!-- Minimales Layout-Fallback, sorgt dafür, dass Canvas sichtbar ist -->
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      box-sizing: border-box;
+    }
+
+    #arena {
+      width: 100%;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #1a1a1a;
+      color: white;
+      user-select: none;
+    }
+
+    /* Fallback-Höhe für das Spielfeld, kann in arena.css überschrieben werden */
+    #arena-field-wrapper {
+      width: 100%;
+      min-height: 600px;
+      position: relative;
+    }
+
+    /* Canvas füllt Wrapper */
+    canvas#arena-field {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
 </head>
 
 <body>
 
 <div id="arena">
-<style>
-  #arena-field-wrapper {
-    width: 100%;
-    height: 600px; /* oder 800px */
-    position: relative;
-  }
 
-  #arena-field {
-    width: 100%;
-    height: 100%;
-  }
-</style>
   <!-- Toolbar -->
   <div id="arena-toolbar">
     <button data-tool="move" class="active">Spieler</button>
@@ -42,15 +68,29 @@
 
   <!-- Spielfeld + Layer -->
   <div id="arena-field-wrapper">
-    <div id="arena-field"></div>
-    <div id="arena-lines"></div>
-    <div id="arena-players"></div>
+    <!-- echtes Canvas, ID muss mit arena.init übereinstimmen -->
+    <canvas id="arena-field"></canvas>
+
+    <!-- Layer für Linien und DOM-Spieler (optional, wird von CSS/JS genutzt) -->
+    <div id="arena-lines" aria-hidden="true"></div>
+    <div id="arena-players" aria-hidden="true"></div>
   </div>
 
 </div>
 
-<!-- JavaScript laden -->
+<!-- Reihenfolge der Skripte: ToniDB zuerst, dann Arena-Engine, dann Init -->
+<script src="toni-db.js"></script>
 <script src="arena.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    if (window.arena && typeof window.arena.init === "function") {
+      // ID muss mit dem Canvas oben übereinstimmen
+      window.arena.init("arena-field");
+    } else {
+      console.warn("Arena nicht verfügbar oder arena.init fehlt");
+    }
+  });
+</script>
 
 </body>
 </html>
