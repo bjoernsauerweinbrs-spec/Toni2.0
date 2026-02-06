@@ -220,13 +220,13 @@
 
     // Player-Card Modal API
     window.openPlayerCardModal = function (player) {
-      const backdrop = document.getElementById("playercard-backdrop");
-      if (!backdrop) return;
+  const backdrop = document.getElementById("playercard-backdrop");
+  if (!backdrop) return;
 
-      const id = player.id || "";
-      if (!id) return; // Sicherheit: nie ohne ID öffnen
+  const id = player?.id;
+  if (!id) return; // WICHTIG: niemals ohne ID öffnen
 
-      backdrop.hidden = false;
+  backdrop.hidden = false;
 
       document.getElementById("playercard-title").textContent = id;
       document.getElementById("playercard-number").value = player.number || "";
