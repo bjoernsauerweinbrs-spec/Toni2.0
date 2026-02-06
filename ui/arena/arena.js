@@ -85,9 +85,7 @@ const arena = {
     this._setupPointerEvents();
 
     // KI / DB Listener
-    this._setupAIListeners();
-    this._setupDBListeners();
-
+    
     // Start Render Loop
     requestAnimationFrame(() => this._render());
     console.log("%c[TONI 2.0] Arena geladen", "color:#00ff88");
