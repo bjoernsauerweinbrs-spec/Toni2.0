@@ -1,6 +1,6 @@
 /* ============================================
-   TONI 2.0 – ARENA CSS
-   Modernes UI, FIFA-Card, Analysezentrum, Toasts
+   TONI 2.0 – ARENA CSS (FIFA Card Premium Edition)
+   Custom Mix Gold + mittlere Struktur
    ============================================ */
 
 /* Reset / Base */
@@ -83,12 +83,16 @@ canvas#arena-field {
   border-radius: 6px;
   color: #eee;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
   font-size: 14px;
 }
 
 .toolbar-btn:hover {
   background: #333;
+}
+
+.toolbar-btn:active {
+  transform: scale(0.96);
 }
 
 .toolbar-btn.active,
@@ -151,7 +155,7 @@ canvas#arena-field {
 .toast-error { background: #d64545; }
 
 /* ============================================
-   FIFA Player Card Modal
+   FIFA Player Card Modal (Premium Edition)
    ============================================ */
 
 .modal-backdrop {
@@ -164,14 +168,52 @@ canvas#arena-field {
   z-index: 4000;
 }
 
+/* --- GOLD CARD BACKGROUND (Custom Mix + Struktur) --- */
 .playercard-modal {
   width: 340px;
-  background: linear-gradient(180deg, #f7d774 0%, #c9a43a 100%);
-  border-radius: 14px;
-  padding: 0;
-  box-shadow: 0 0 30px rgba(0,0,0,0.4);
+  border-radius: 18px;
   overflow: hidden;
+  padding: 0;
+  background:
+    /* Struktur (mittlere Körnung) */
+    linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.12) 100%),
+    /* Gold-Gradient */
+    linear-gradient(180deg, #f7d774 0%, #d4b24f 40%, #b48a2c 100%);
+  background-blend-mode: overlay, normal;
+  box-shadow:
+    0 0 25px rgba(0,0,0,0.4),
+    inset 0 0 12px rgba(255,255,255,0.25),
+    inset 0 -6px 12px rgba(0,0,0,0.25);
   animation: cardPop 0.25s ease-out;
+  position: relative;
+}
+
+/* Shine Sweep (dezent) */
+.playercard-modal::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -60%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    120deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.25) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  transform: rotate(25deg);
+  opacity: 0;
+  pointer-events: none;
+  animation: shineSweep 4s infinite ease-in-out;
+}
+
+@keyframes shineSweep {
+  0% { opacity: 0; transform: translateX(-120%) rotate(25deg); }
+  40% { opacity: 0; }
+  55% { opacity: 0.35; transform: translateX(40%) rotate(25deg); }
+  70% { opacity: 0; }
+  100% { opacity: 0; transform: translateX(120%) rotate(25deg); }
 }
 
 @keyframes cardPop {
@@ -179,6 +221,7 @@ canvas#arena-field {
   to { transform: scale(1); opacity: 1; }
 }
 
+/* --- HEADER --- */
 .playercard-header {
   display: flex;
   justify-content: space-between;
@@ -189,8 +232,9 @@ canvas#arena-field {
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-weight: 700;
+  font-weight: 800;
   color: #000;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.6);
 }
 
 .playercard-rating span:first-child {
@@ -202,11 +246,16 @@ canvas#arena-field {
   font-size: 18px;
 }
 
+/* Avatar Frame */
 .playercard-avatar {
   width: 90px;
   height: 90px;
-  background: #fff;
-  border-radius: 10px;
+  background: radial-gradient(circle at 30% 30%, #fff 0%, #ddd 60%, #bbb 100%);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 8px rgba(255,255,255,0.6),
+    inset 0 -6px 10px rgba(0,0,0,0.25),
+    0 4px 10px rgba(0,0,0,0.3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -216,6 +265,7 @@ canvas#arena-field {
   font-size: 48px;
 }
 
+/* --- BODY --- */
 .playercard-body {
   padding: 16px;
   background: #fff;
@@ -225,8 +275,10 @@ canvas#arena-field {
 .playercard-body h2 {
   margin: 0 0 10px;
   font-size: 22px;
+  font-weight: 700;
 }
 
+/* Meta */
 .playercard-meta {
   display: flex;
   gap: 10px;
@@ -246,6 +298,7 @@ canvas#arena-field {
   border: 1px solid #ccc;
 }
 
+/* Attributes */
 .playercard-attributes {
   display: flex;
   justify-content: space-between;
@@ -262,6 +315,9 @@ canvas#arena-field {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
+  font-weight: 700;
+  color: #222;
+  text-shadow: 0 1px 1px rgba(255,255,255,0.4);
 }
 
 .attr-col input {
@@ -271,6 +327,7 @@ canvas#arena-field {
   border: 1px solid #ccc;
 }
 
+/* Notes */
 .playercard-notes textarea {
   width: 100%;
   padding: 6px;
@@ -279,6 +336,7 @@ canvas#arena-field {
   resize: vertical;
 }
 
+/* --- FOOTER --- */
 .playercard-footer {
   display: flex;
   justify-content: flex-end;
