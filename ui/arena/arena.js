@@ -12,6 +12,20 @@
 // Lokale Fallback-Objekte (werden nur verwendet, wenn window.* nicht gesetzt ist)
 const _fallbackToniEvents = {
   on: () => {},
+  emit// ============================================
+// TONI 2.0 – ARENA ENGINE (4-4-2 + KI-Bewegung)
+// Spielfeld, Spieler, Drag & Drop, Gruppen,
+// KI-Formation-Movement
+// ============================================
+
+// Hinweis:
+// Diese Datei ist für GitHub Pages / plain browser gedacht:
+// - keine import/export Syntax
+// - erwartet globale window.ToniDB / window.ToniEvents (falls nicht vorhanden, werden Fallbacks genutzt)
+
+// Lokale Fallback-Objekte (werden nur verwendet, wenn window.* nicht gesetzt ist)
+const _fallbackToniEvents = {
+  on: () => {},
   emit: () => {}
 };
 
@@ -23,7 +37,10 @@ const _fallbackToniDB = {
     },
     positions: {}
   },
-  savePosition: () => {}
+  savePosition: () => {},
+  getPositions: () => ({}),
+  setPositions: () => {},
+  clearPositions: () => {}
 };
 
 // Helper: immer die aktuellste globale Referenz holen (falls ToniDB/ToniEvents später geladen werden)
@@ -429,13 +446,19 @@ const arena = {
     // clear saved positions (if ToniDB supports it) and reload formation
     const ToniDB = getToniDB();
     if (ToniDB && ToniDB.data) {
-      ToniDB.data.positions = {};
-      try {
-        if (window.localStorage) {
-          localStorage.removeItem("toni_positions");
+      if (typeof ToniDB.clearPositions === "function") {
+        ToniDB.clearPositions();
+      } else {
+        ToniDB.data.positions = {};
+        try {
+          if (window.localStorage) {
+            // try both known keys (backwards compatibility)
+            localStorage.removeItem("toni_positions_v1");
+            localStorage.removeItem("toni_positions");
+          }
+        } catch (e) {
+          // ignore
         }
-      } catch (e) {
-        // ignore
       }
     }
     this.players = {};
@@ -446,6 +469,89 @@ const arena = {
     // set data attribute on wrapper for CSS/background switching
     const wrapper = document.getElementById("arena-field-wrapper");
     if (wrapper) wrapper.dataset.field = fieldKey;
+  },
+
+  // ----------------------------------------
+  // Export / Import Funktionen
+  // ----------------------------------------
+  exportPositions() {
+    try {
+      const ToniDB = getToniDB();
+      const payload = {
+        meta: { created: new Date().toISOString(), version: "toni_v1" },
+        squad: ToniDB.data?.squad || {},
+        positions: ToniDB.data?.positions || {}
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `toni-formation-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Export failed", e);
+    }
+  },
+
+  importPositionsFromObject(obj) {
+    // obj expected: { meta?, squad?, positions? }
+    if (!obj || typeof obj !== "object") {
+      console.warn("Import: invalid payload");
+      return false;
+    }
+    const ToniDB = getToniDB();
+    // optional: replace squad if provided
+    if (obj.squad && typeof obj.squad === "object") {
+      if (ToniDB.data) ToniDB.data.squad = obj.squad;
+    }
+    // validate positions: must be object of {x:number,y:number}
+    const positions = obj.positions || {};
+    const normalized = {};
+    Object.keys(positions).forEach(k => {
+      const v = positions[k];
+      const x = Number(v?.x);
+      const y = Number(v?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      normalized[k] = { x, y };
+    });
+    if (Object.keys(normalized).length === 0) {
+      console.warn("Import: no valid positions found");
+    }
+    // use ToniDB API if available
+    if (typeof ToniDB.setPositions === "function") {
+      ToniDB.setPositions(normalized);
+    } else if (ToniDB.data) {
+      ToniDB.data.positions = normalized;
+    }
+    // reload players so arena reflects imported positions
+    if (typeof this._loadPlayersWithFormation === "function") {
+      this._loadPlayersWithFormation();
+    }
+    return true;
+  },
+
+  importPositionsFromFile(file, callback) {
+    if (!file) {
+      if (typeof callback === "function") callback(new Error("no file"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const obj = JSON.parse(e.target.result);
+        const ok = this.importPositionsFromObject(obj);
+        if (typeof callback === "function") callback(null, ok);
+      } catch (err) {
+        if (typeof callback === "function") callback(err);
+      }
+    };
+    reader.onerror = (err) => {
+      if (typeof callback === "function") callback(err);
+    };
+    reader.readAsText(file);
   }
 };
 
