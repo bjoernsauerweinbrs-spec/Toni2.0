@@ -4,15 +4,18 @@
 // KI-Formation-Movement
 // ============================================
 
-// Statt ES-Modulen greifen wir auf globale Objekte zu.
-// Wenn ToniEvents / ToniDB noch nicht existieren, legen wir harmlose Platzhalter an,
-// damit die Arena trotzdem läuft und nichts crasht.
+// Hinweis:
+// Diese Datei ist für GitHub Pages / plain browser gedacht:
+// - keine import/export Syntax
+// - erwartet globale window.ToniDB / window.ToniEvents (falls nicht vorhanden, werden Fallbacks genutzt)
 
-const ToniEvents = window.ToniEvents || {
-  on: () => {}
+// Lokale Fallback-Objekte (werden nur verwendet, wenn window.* nicht gesetzt ist)
+const _fallbackToniEvents = {
+  on: () => {},
+  emit: () => {}
 };
 
-const ToniDB = window.ToniDB || {
+const _fallbackToniDB = {
   data: {
     squad: {
       home: { starters: [], bench: [] },
@@ -22,6 +25,14 @@ const ToniDB = window.ToniDB || {
   },
   savePosition: () => {}
 };
+
+// Helper: immer die aktuellste globale Referenz holen (falls ToniDB/ToniEvents später geladen werden)
+function getToniEvents() {
+  return window.ToniEvents || _fallbackToniEvents;
+}
+function getToniDB() {
+  return window.ToniDB || _fallbackToniDB;
+}
 
 const arena = {
   canvas: null,
@@ -35,6 +46,9 @@ const arena = {
   animating: false,
   animationTargets: {}, // { id: { x, y } }
 
+  // optional current tool (set via toolbar)
+  currentTool: "move",
+
   // ----------------------------------------
   // Initialisierung
   // ----------------------------------------
@@ -47,35 +61,58 @@ const arena = {
 
     this.ctx = this.canvas.getContext("2d");
 
+    // DPR-aware resize
     this._resizeCanvas();
+    // bind to window resize
     window.addEventListener("resize", () => this._resizeCanvas());
 
+    // load players and events
     this._loadPlayersWithFormation();
     this._setupMouseEvents();
     this._setupAIListeners();
 
+    // start render loop
     requestAnimationFrame(() => this._render());
     console.log("%c[TONI 2.0] Arena (4-4-2) geladen", "color:#00ff88");
   },
 
   // ----------------------------------------
-  // Canvas an Fenster anpassen
+  // Canvas an Fenster anpassen (devicePixelRatio aware)
   // ----------------------------------------
   _resizeCanvas() {
-    this.canvas.width = this.canvas.clientWidth;
-    this.canvas.height = this.canvas.clientHeight;
+    if (!this.canvas) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    // compute backing store size in device pixels
+    const w = Math.max(1, Math.floor(rect.width * dpr));
+    const h = Math.max(1, Math.floor(rect.height * dpr));
+
+    // only update if changed
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+
+      // reset transform and scale so drawing coordinates can remain in CSS pixels
+      if (this.ctx && typeof this.ctx.setTransform === "function") {
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+    }
   },
 
   // ----------------------------------------
   // Spieler mit 4-4-2-Formation laden
   // ----------------------------------------
   _loadPlayersWithFormation() {
-    const homeStarters = ToniDB.data.squad.home.starters;
-    const homeBench = ToniDB.data.squad.home.bench;
-    const awayStarters = ToniDB.data.squad.away.starters;
+    const ToniDB = getToniDB();
+    const homeStarters = (ToniDB.data?.squad?.home?.starters) || [];
+    const homeBench = (ToniDB.data?.squad?.home?.bench) || [];
+    const awayStarters = (ToniDB.data?.squad?.away?.starters) || [];
 
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    // Use CSS pixel sizes for layout calculations: convert canvas backing pixels to CSS pixels
+    const dpr = window.devicePixelRatio || 1;
+    const w = (this.canvas.width / dpr) || 1;
+    const h = (this.canvas.height / dpr) || 1;
 
     const formationHome = [
       { line: "keeper",  x: 0.10, y: 0.50 }, // TW
@@ -105,9 +142,12 @@ const arena = {
       { line: "attack",   x: 0.88, y: 0.30 }
     ];
 
+    // reset players
+    this.players = {};
+
     // Heim: 11 Startspieler
     homeStarters.forEach((id, index) => {
-      const savedPos = ToniDB.data.positions[id];
+      const savedPos = ToniDB.data?.positions?.[id];
       const f = formationHome[index] ?? { line: "midfield", x: 0.5, y: 0.5 };
 
       const baseX = f.x * w;
@@ -123,7 +163,7 @@ const arena = {
 
     // Bank: rechts unten parken
     homeBench.forEach((id, index) => {
-      const savedPos = ToniDB.data.positions[id];
+      const savedPos = ToniDB.data?.positions?.[id];
       const baseX = 0.10 * w;
       const baseY = (0.10 + index * 0.07) * h;
 
@@ -137,7 +177,7 @@ const arena = {
 
     // Gegner: 11 Spieler
     awayStarters.forEach((id, index) => {
-      const savedPos = ToniDB.data.positions[id];
+      const savedPos = ToniDB.data?.positions?.[id];
       const f = formationAway[index] ?? { line: "midfield", x: 0.7, y: 0.5 };
 
       const baseX = f.x * w;
@@ -156,17 +196,25 @@ const arena = {
   // Maus-Events für Drag & Drop
   // ----------------------------------------
   _setupMouseEvents() {
-    this.canvas.addEventListener("mousedown", (e) => this._onDown(e));
-    this.canvas.addEventListener("mousemove", (e) => this._onMove(e));
-    this.canvas.addEventListener("mouseup", () => this._onUp());
+    // Use pointer events if available for better touch support
+    const downEvent = window.PointerEvent ? "pointerdown" : "mousedown";
+    const moveEvent = window.PointerEvent ? "pointermove" : "mousemove";
+    const upEvent = window.PointerEvent ? "pointerup" : "mouseup";
+
+    this.canvas.addEventListener(downEvent, (e) => this._onDown(e));
+    this.canvas.addEventListener(moveEvent, (e) => this._onMove(e));
+    window.addEventListener(upEvent, () => this._onUp());
     this.canvas.addEventListener("mouseleave", () => this._onUp());
   },
 
   _onDown(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    if (this.currentTool !== "move") return;
 
+    const rect = this.canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left);
+    const my = (e.clientY - rect.top);
+
+    // find player under cursor (iterate in reverse order could be added)
     for (const id in this.players) {
       const p = this.players[id];
       const dx = mx - p.x;
@@ -185,13 +233,17 @@ const arena = {
     if (!this.dragging) return;
 
     const rect = this.canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const mx = (e.clientX - rect.left);
+    const my = (e.clientY - rect.top);
 
     this.players[this.dragging].x = mx - this.offsetX;
     this.players[this.dragging].y = my - this.offsetY;
 
-    ToniDB.savePosition(this.dragging, mx - this.offsetX, my - this.offsetY);
+    // persist position via ToniDB if available
+    const ToniDB = getToniDB();
+    if (typeof ToniDB.savePosition === "function") {
+      ToniDB.savePosition(this.dragging, mx - this.offsetX, my - this.offsetY);
+    }
   },
 
   _onUp() {
@@ -202,20 +254,24 @@ const arena = {
   // KI-Events aus ToniCore
   // ----------------------------------------
   _setupAIListeners() {
-    ToniEvents.on("ai:move", (payload) => {
-      const direction = payload?.direction ?? null;
-      if (!direction) return;
-
-      this._applyFormationShift(direction);
-    });
+    const ToniEvents = getToniEvents();
+    if (typeof ToniEvents.on === "function") {
+      ToniEvents.on("ai:move", (payload) => {
+        const direction = payload?.direction ?? null;
+        if (!direction) return;
+        this._applyFormationShift(direction);
+      });
+    }
   },
 
   // ----------------------------------------
   // Formation verschieben (KI-Bewegung)
   // ----------------------------------------
   _applyFormationShift(direction) {
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    // Use CSS pixel sizes for shift calculations
+    const dpr = window.devicePixelRatio || 1;
+    const w = (this.canvas.width / dpr) || 1;
+    const h = (this.canvas.height / dpr) || 1;
 
     const shift = {
       forward: { dx: w * 0.03, dy: 0 },
@@ -251,9 +307,15 @@ const arena = {
   // ----------------------------------------
   _drawField() {
     const ctx = this.ctx;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    if (!ctx) return;
 
+    // Use canvas backing size (already scaled via setTransform), draw using CSS pixels
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.width / dpr;
+    const h = this.canvas.height / dpr;
+
+    ctx.save();
+    // clear
     ctx.fillStyle = "#0b5e20";
     ctx.fillRect(0, 0, w, h);
 
@@ -276,6 +338,7 @@ const arena = {
 
     ctx.strokeRect(20, h / 2 - 40, 60, 80);
     ctx.strokeRect(w - 80, h / 2 - 40, 60, 80);
+    ctx.restore();
   },
 
   // ----------------------------------------
@@ -283,7 +346,9 @@ const arena = {
   // ----------------------------------------
   _drawPlayers() {
     const ctx = this.ctx;
+    if (!ctx) return;
 
+    // Use CSS pixel coordinates (players stored in CSS pixels)
     for (const id in this.players) {
       const p = this.players[id];
 
@@ -345,11 +410,42 @@ const arena = {
   // Render-Loop
   // ----------------------------------------
   _render() {
+    // update and draw
     this._updateAnimation();
     this._drawField();
     this._drawPlayers();
 
     requestAnimationFrame(() => this._render());
+  },
+
+  // ----------------------------------------
+  // Public API: Tool, Reset, Field
+  // ----------------------------------------
+  setTool(toolName) {
+    this.currentTool = toolName;
+  },
+
+  reset() {
+    // clear saved positions (if ToniDB supports it) and reload formation
+    const ToniDB = getToniDB();
+    if (ToniDB && ToniDB.data) {
+      ToniDB.data.positions = {};
+      try {
+        if (window.localStorage) {
+          localStorage.removeItem("toni_positions");
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    this.players = {};
+    this._loadPlayersWithFormation();
+  },
+
+  setField(fieldKey) {
+    // set data attribute on wrapper for CSS/background switching
+    const wrapper = document.getElementById("arena-field-wrapper");
+    if (wrapper) wrapper.dataset.field = fieldKey;
   }
 };
 
