@@ -268,15 +268,15 @@ const arena = {
   // Long-Press → PlayerCard
   // ----------------------------------------
   _openPlayerCard(id) {
-    if (!id) return; // Schutz
+  if (!id) return; // Schutz
 
-    const ToniDB = getToniDB();
-    const data = ToniDB.getPlayer ? ToniDB.getPlayer(id) || { id } : { id };
+  const ToniDB = getToniDB();
+  const data = ToniDB.getPlayer(id) || { id };
 
-    if (window.openPlayerCardModal) {
-      window.openPlayerCardModal(data);
-    }
-  },
+  if (window.openPlayerCardModal) {
+    window.openPlayerCardModal(data);
+  }
+}
 
   savePlayerCard(data) {
     const ToniDB = getToniDB();
