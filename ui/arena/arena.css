@@ -1,6 +1,14 @@
+/* Grundlayout: sicherstellen, dass Container Höhe hat */
+html, body {
+  height: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* Haupt-Container */
 #arena {
   width: 100%;
-  height: 100%;
+  min-height: 100vh; /* sorgt dafür, dass #arena sichtbar ist */
   display: flex;
   flex-direction: column;
   background: #1a1a1a;
@@ -38,22 +46,32 @@
   border-color: #0099ff;
 }
 
-/* Spielfeld */
+/* Spielfeld-Wrapper: flexible Höhe, aber Mindesthöhe sichern */
 #arena-field-wrapper {
   position: relative;
   flex: 1;
+  min-height: 600px; /* fallback, anpassbar (600–900px) */
   overflow: hidden;
 }
 
+/* Canvas / Field: füllt Wrapper vollständig */
 #arena-field {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
+  height: 100%;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
+  display: block;
+}
+
+/* Falls du ein <canvas id="arena-field"> verwendest, stelle sicher, dass es skaliert */
+canvas#arena-field {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* Linien-Layer */
@@ -80,6 +98,7 @@
   left: 0;
   right: 0;
   bottom: 0;
+  pointer-events: none; /* Layer selbst nicht interaktiv; einzelne .player können pointer-events aktivieren */
 }
 
 .player {
@@ -90,8 +109,20 @@
   position: absolute;
   cursor: grab;
   border: 2px solid white;
+  pointer-events: auto; /* Spieler sollen interaktiv sein */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: white;
+  user-select: none;
 }
 
 .player:active {
   cursor: grabbing;
+}
+
+/* Kleine Hilfsregeln */
+.hidden {
+  display: none !important;
 }
