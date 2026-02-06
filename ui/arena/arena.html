@@ -333,37 +333,81 @@
       }
 
       // Player-Card Buttons
-      const btnCardCancel = document.getElementById("playercard-cancel");
-      const btnCardSave = document.getElementById("playercard-save");
-      if (btnCardCancel) btnCardCancel.addEventListener("click", () => closePlayerCardModal());
-      if (btnCardSave) btnCardSave.addEventListener("click", () => {
-        const backdrop = document.getElementById("playercard-backdrop");
-        if (!backdrop) return;
-        const id = backdrop.dataset.playerId;
-        if (!id) return;
+const btnCardCancel = document.getElementById("playercard-cancel");
+const btnCardSave = document.getElementById("playercard-save");
 
-        const data = {
-          id,
-          number: document.getElementById("playercard-number").value,
-          role: document.getElementById("playercard-role-input").value,
-          color: document.getElementById("playercard-color").value,
-          rating: Number(document.getElementById("playercard-rating").textContent) || null,
-          attributes: {
-            pace: Number(document.getElementById("attr-pace").value) || null,
-            dribble: Number(document.getElementById("attr-dribble").value) || null,
-            shot: Number(document.getElementById("attr-shot").value) || null,
-            pass: Number(document.getElementById("attr-pass").value) || null,
-            defense: Number(document.getElementById("attr-defense").value) || null,
-            physical: Number(document.getElementById("attr-physical").value) || null
-          },
-          notes: document.getElementById("playercard-notes").value
-        };
+// Rating automatisch berechnen
+function recalcRating() {
+  const attrs = [
+    Number(document.getElementById("attr-pace").value),
+    Number(document.getElementById("attr-dribble").value),
+    Number(document.getElementById("attr-shot").value),
+    Number(document.getElementById("attr-pass").value),
+    Number(document.getElementById("attr-defense").value),
+    Number(document.getElementById("attr-physical").value)
+  ];
 
-        if (window.arena && typeof window.arena.savePlayerCard === "function") {
-          window.arena.savePlayerCard(data);
-        }
-        closePlayerCardModal();
-      });
+  // Nur gültige Werte berücksichtigen
+  const valid = attrs.filter(v => Number.isFinite(v) && v > 0);
+
+  if (valid.length === 0) {
+    document.getElementById("playercard-rating").textContent = "0";
+    return;
+  }
+
+  const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
+  const rating = Math.round(avg); // mathematisches Runden
+  document.getElementById("playercard-rating").textContent = rating;
+}
+
+// Live-Update für Rating
+["attr-pace","attr-dribble","attr-shot","attr-pass","attr-defense","attr-physical"]
+  .forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("input", recalcRating);
+  });
+
+// Abbrechen
+if (btnCardCancel) {
+  btnCardCancel.addEventListener("click", () => {
+    const backdrop = document.getElementById("playercard-backdrop");
+    if (backdrop) backdrop.hidden = true;
+  });
+}
+
+// Speichern
+if (btnCardSave) {
+  btnCardSave.addEventListener("click", () => {
+    const backdrop = document.getElementById("playercard-backdrop");
+    if (!backdrop) return;
+
+    const id = backdrop.dataset.playerId;
+    if (!id) return;
+
+    const data = {
+      id,
+      number: document.getElementById("playercard-number").value,
+      role: document.getElementById("playercard-role-input").value,
+      color: document.getElementById("playercard-color").value,
+      rating: Number(document.getElementById("playercard-rating").textContent),
+      attributes: {
+        pace: Number(document.getElementById("attr-pace").value) || null,
+        dribble: Number(document.getElementById("attr-dribble").value) || null,
+        shot: Number(document.getElementById("attr-shot").value) || null,
+        pass: Number(document.getElementById("attr-pass").value) || null,
+        defense: Number(document.getElementById("attr-defense").value) || null,
+        physical: Number(document.getElementById("attr-physical").value) || null
+      },
+      notes: document.getElementById("playercard-notes").value
+    };
+
+    if (window.arena && typeof window.arena.savePlayerCard === "function") {
+      window.arena.savePlayerCard(data);
+    }
+
+    backdrop.hidden = true;
+  });
+}
 
       // Analyse-Center
       const btnAnalysis = document.getElementById("btn-analysis");
