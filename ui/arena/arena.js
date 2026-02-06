@@ -226,7 +226,7 @@ const arena = {
       this.longPressActive = true;
       this._openPlayerCard(hit);
     }, this.LONG_PRESS_TIME);
-    },
+  },
   _onPointerMove(e) {
     if (!this.dragging) return;
     if (this.longPressActive) return;
@@ -394,5 +394,202 @@ const arena = {
       this.toast("Redo fehlgeschlagen", "error");
     }
   },
-  
+  // ----------------------------------------
+  // Render Loop
+  // ----------------------------------------
+  _render() {
+    this._updateAnimation();
+    this._drawField();
+    this._drawPlayers();
+    requestAnimationFrame(() => this._render());
   },
+
+  _updateAnimation() {
+    if (!this.animating) return;
+    let moving = false;
+
+    for (const id in this.animationTargets) {
+      const t = this.animationTargets[id];
+      const p = this.players[id];
+      if (!p) continue;
+      const dx = t.x - p.x;
+      const dy = t.y - p.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 1) {
+        p.x = t.x;
+        p.y = t.y;
+        continue;
+      }
+
+      p.x += dx * 0.15;
+      p.y += dy * 0.15;
+      moving = true;
+    }
+
+    if (!moving) {
+      this.animating = false;
+      this.animationTargets = {};
+    }
+  },
+
+  _drawField() {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.width / dpr;
+    const h = this.canvas.height / dpr;
+
+    ctx.save();
+    ctx.clearRect(0, 0, w, h);
+
+    // Hintergrund
+    ctx.fillStyle = "#0b5e20";
+    ctx.fillRect(0, 0, w, h);
+
+    // Linien
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(20, 20, w - 40, h - 40);
+
+    // Mittellinie
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 20);
+    ctx.lineTo(w / 2, h - 20);
+    ctx.stroke();
+
+    // Kreis
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, 80, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Strafräume
+    ctx.strokeRect(20, h / 2 - 100, 120, 200);
+    ctx.strokeRect(w - 140, h / 2 - 100, 120, 200);
+
+    // Torbereiche
+    ctx.strokeRect(20, h / 2 - 40, 60, 80);
+    ctx.strokeRect(w - 80, h / 2 - 40, 60, 80);
+
+    ctx.restore();
+  },
+
+  _drawPlayers() {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+
+    for (const id in this.players) {
+      const p = this.players[id];
+      if (!p) continue;
+
+      ctx.beginPath();
+      ctx.fillStyle = p.color === "red" ? "#ff4444" : "#448aff";
+      ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (id === this.selectedPlayer) {
+        ctx.strokeStyle = "#ffd700";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      } else if (p.line === "keeper") {
+        ctx.strokeStyle = "#ffd700";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "white";
+      ctx.font = "12px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(id, p.x, p.y + 4);
+    }
+  },
+
+  // ----------------------------------------
+  // Utils
+  // ----------------------------------------
+  _findPlayerAt(mx, my) {
+    const HIT = 28;
+    for (const id in this.players) {
+      const p = this.players[id];
+      if (!p) continue;
+      const dx = mx - p.x;
+      const dy = my - p.y;
+      if (dx * dx + dy * dy < HIT * HIT) return id;
+    }
+    return null;
+  },
+  toast(msg, type = "info") {
+    if (!window.showToast) {
+      console.log("[TOAST]", type.toUpperCase(), msg);
+      return;
+    }
+    try {
+      window.showToast(msg, type);
+    } catch (err) {
+      console.warn("[ARENA] toast failed", err);
+    }
+  },
+
+  setTool(toolName) {
+    this.currentTool = toolName;
+    this.toast(`Tool: ${toolName}`, "info");
+  },
+
+  reset() {
+    const ToniDB = getToniDB();
+    if (ToniDB.clearPositions) {
+      ToniDB.clearPositions();
+    }
+    this._loadPlayersWithFormation();
+    this._pushHistory();
+    this.toast("Reset durchgeführt", "info");
+  },
+
+  setField(fieldKey) {
+    const wrapper = document.getElementById("arena-field-wrapper");
+    if (wrapper) wrapper.dataset.field = fieldKey;
+    this.toast(`Feld geändert: ${fieldKey}`, "info");
+  },
+
+  exportAll() {
+    const ToniDB = getToniDB();
+    const payload = ToniDB.exportAll ? ToniDB.exportAll() : (ToniDB.data || {});
+    try {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `toni-export-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      this.toast("Export erfolgreich", "success");
+    } catch (err) {
+      console.error("[ARENA] exportAll failed", err);
+      this.toast("Export fehlgeschlagen", "error");
+    }
+  },
+
+  importAll(obj) {
+    const ToniDB = getToniDB();
+    try {
+      if (ToniDB.importAll) {
+        ToniDB.importAll(obj);
+      } else {
+        // fallback: merge into data
+        ToniDB.data = Object.assign({}, ToniDB.data || {}, obj || {});
+      }
+      this._loadPlayersWithFormation();
+      this._pushHistory();
+      this.toast("Import erfolgreich", "success");
+    } catch (err) {
+      console.error("[ARENA] importAll failed", err);
+      this.toast("Import fehlgeschlagen", "error");
+    }
+  }
+};
+
+// global machen
+window.arena = arena;
+  
