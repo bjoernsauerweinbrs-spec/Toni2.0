@@ -84,8 +84,6 @@ const arena = {
     // Pointer / Touch Events
     this._setupPointerEvents();
 
-    // KI / DB Listener
-    
     // Start Render Loop
     requestAnimationFrame(() => this._render());
     console.log("%c[TONI 2.0] Arena geladen", "color:#00ff88");
