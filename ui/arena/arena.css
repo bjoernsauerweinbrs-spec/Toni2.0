@@ -1,128 +1,374 @@
-/* Grundlayout: sicherstellen, dass Container Höhe hat */
+/* ============================================
+   TONI 2.0 – ARENA CSS
+   Modernes UI, FIFA-Card, Analysezentrum, Toasts
+   ============================================ */
+
+/* Reset / Base */
 html, body {
   height: 100%;
   margin: 0;
+  padding: 0;
   box-sizing: border-box;
+  background: #0b0b0f;
+  color: #f5f5f5;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-/* Haupt-Container */
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+/* ============================================
+   Layout
+   ============================================ */
+
 #arena {
   width: 100%;
-  min-height: 100vh; /* sorgt dafür, dass #arena sichtbar ist */
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #1a1a1a;
-  color: white;
+  background: radial-gradient(circle at top, #1f2933 0, #050608 55%);
   user-select: none;
 }
 
-/* Toolbar */
+#arena-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#arena-field-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 600px;
+  overflow: hidden;
+}
+
+canvas#arena-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ============================================
+   Toolbar
+   ============================================ */
+
 #arena-toolbar {
   display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: #111;
+  border-bottom: 1px solid #222;
+  flex-wrap: wrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  padding: 10px;
-  background: #222;
-  border-bottom: 1px solid #333;
 }
 
-#arena-toolbar button,
-#arena-toolbar select {
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 12px;
-  background: #333;
-  border: 1px solid #444;
-  color: white;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #eee;
   cursor: pointer;
-  border-radius: 4px;
+  transition: background 0.15s, border-color 0.15s;
+  font-size: 14px;
 }
 
-#arena-toolbar button:hover,
-#arena-toolbar select:hover {
-  background: #444;
+.toolbar-btn:hover {
+  background: #333;
 }
 
-/* Aktives Tool */
-#arena-toolbar button.active {
+.toolbar-btn.active,
+.toolbar-btn[aria-pressed="true"] {
   background: #0077ff;
   border-color: #0099ff;
 }
 
-/* Spielfeld-Wrapper: flexible Höhe, aber Mindesthöhe sichern */
-#arena-field-wrapper {
-  position: relative;
-  flex: 1;
-  min-height: 600px; /* fallback, anpassbar (600–900px) */
-  overflow: hidden;
+.toolbar-btn .icon {
+  font-size: 16px;
 }
 
-/* Canvas / Field: füllt Wrapper vollständig */
-#arena-field {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  display: block;
+.field-select-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #ccc;
 }
 
-/* Falls du ein <canvas id="arena-field"> verwendest, stelle sicher, dass es skaliert */
-canvas#arena-field {
-  width: 100%;
-  height: 100%;
-  display: block;
+#arena-field-select {
+  padding: 6px 10px;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #eee;
 }
 
-/* Linien-Layer */
-#arena-lines {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
+/* ============================================
+   Toasts
+   ============================================ */
+
+#toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 5000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.line {
-  position: absolute;
-  height: 4px;
-  background: red;
-  transform-origin: left center;
+.toast {
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: #333;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.25s, transform 0.25s;
+  font-size: 14px;
 }
 
-/* Spieler-Layer */
-#arena-players {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none; /* Layer selbst nicht interaktiv; einzelne .player können pointer-events aktivieren */
+.toast.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
-.player {
-  width: 40px;
-  height: 40px;
-  background: #00aaff;
-  border-radius: 50%;
-  position: absolute;
-  cursor: grab;
-  border: 2px solid white;
-  pointer-events: auto; /* Spieler sollen interaktiv sein */
+.toast-info { background: #2d6cdf; }
+.toast-success { background: #2fa84f; }
+.toast-error { background: #d64545; }
+
+/* ============================================
+   FIFA Player Card Modal
+   ============================================ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 4000;
+}
+
+.playercard-modal {
+  width: 340px;
+  background: linear-gradient(180deg, #f7d774 0%, #c9a43a 100%);
+  border-radius: 14px;
+  padding: 0;
+  box-shadow: 0 0 30px rgba(0,0,0,0.4);
+  overflow: hidden;
+  animation: cardPop 0.25s ease-out;
+}
+
+@keyframes cardPop {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.playercard-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.playercard-rating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 700;
+  color: #000;
+}
+
+.playercard-rating span:first-child {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.playercard-pos {
+  font-size: 18px;
+}
+
+.playercard-avatar {
+  width: 90px;
+  height: 90px;
+  background: #fff;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-placeholder {
+  font-size: 48px;
+}
+
+.playercard-body {
+  padding: 16px;
+  background: #fff;
+  color: #000;
+}
+
+.playercard-body h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.playercard-meta {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.playercard-meta label {
+  display: flex;
+  flex-direction: column;
   font-size: 12px;
-  color: white;
-  user-select: none;
+  color: #333;
 }
 
-.player:active {
-  cursor: grabbing;
+.playercard-meta input {
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
 }
 
-/* Kleine Hilfsregeln */
+.playercard-attributes {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.attr-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attr-col label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.attr-col input {
+  width: 50px;
+  padding: 4px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.playercard-notes textarea {
+  width: 100%;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  resize: vertical;
+}
+
+.playercard-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px;
+  background: #eee;
+}
+
+.playercard-footer button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.playercard-footer .primary {
+  background: #0077ff;
+  color: #fff;
+}
+
+/* ============================================
+   Analyse-Center Sidebar
+   ============================================ */
+
+.analysis-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 340px;
+  height: 100%;
+  background: #111;
+  border-left: 1px solid #222;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 3500;
+  animation: slideIn 0.25s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.analysis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px;
+  background: #222;
+  border-bottom: 1px solid #333;
+}
+
+.analysis-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.analysis-header button {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.analysis-section {
+  padding: 14px;
+  border-bottom: 1px solid #222;
+}
+
+.analysis-section h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+#analysis-notes {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #1a1a1a;
+  color: #eee;
+  resize: vertical;
+}
+
+/* ============================================
+   Utility
+   ============================================ */
+
 .hidden {
   display: none !important;
 }
