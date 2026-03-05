@@ -1,28 +1,86 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <title>TONI 2.0</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TONI 2.0 | Stark Performance Elite</title>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- Arena CSS -->
-  <link rel="stylesheet" href="./Toni2.0/src/ui/arena/arena.css" />
+    <style>
+        body {
+            margin: 0;
+            background-color: #001240;
+            color: white;
+            font-family: sans-serif;
+            overflow-x: hidden;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .stark-red { color: #cc0000; }
+        .bg-stark-red { background-color: #cc0000; }
+    </style>
 </head>
 <body>
+    <div id="root"></div>
 
-  <div id="app-root">
-    <div id="arena"></div>
-  </div>
+    <script type="text/babel">
+        const { useState } = React;
 
-  <!-- Arena HTML einfügen -->
-  <script type="module">
-    import './Toni2.0/src/ui/arena/arena.html';
-  </script>
+        const App = () => {
+            const [view, setView] = useState('dashboard');
 
-  <!-- Arena Logik -->
-  <script type="module">
-    import { initArena } from './Toni2.0/src/modules/arena/arena.js';
-    initArena();
-  </script>
+            return (
+                <div className="min-h-screen p-8 bg-gradient-to-br from-[#001240] to-[#00081a]">
+                    <header className="flex justify-between items-center mb-10 border-b border-white/10 pb-6">
+                        <h1 className="text-3xl font-black italic tracking-tighter">
+                            STARK <span className="text-red-600">PERFORMANCE</span> 2.0
+                        </h1>
+                        <button 
+                            onClick={() => setView(view === 'dashboard' ? 'vr' : 'dashboard')}
+                            className="bg-red-600 px-6 py-2 rounded-full font-bold uppercase text-sm"
+                        >
+                            {view === 'dashboard' ? 'Enter VR Mode' : 'Back to Dashboard'}
+                        </button>
+                    </header>
 
-</body>
-</html>
+                    {view === 'dashboard' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="glass-panel">
+                                <h3 className="font-bold mb-4 uppercase text-xs text-white/40 tracking-widest">Status: Arzt-Toni</h3>
+                                <div className="text-2xl font-mono tracking-tighter text-red-500">READY</div>
+                                <p className="text-[10px] mt-2 text-white/60 font-mono">Bio-Data Sync: Active</p>
+                            </div>
+                            <div className="glass-panel">
+                                <h3 className="font-bold mb-4 uppercase text-xs text-white/40 tracking-widest">Status: Manager-Toni</h3>
+                                <div className="text-2xl font-mono tracking-tighter">€ 12.5M</div>
+                                <p className="text-[10px] mt-2 text-white/60 font-mono">Budget: Operational</p>
+                            </div>
+                            <div className="glass-panel">
+                                <h3 className="font-bold mb-4 uppercase text-xs text-white/40 tracking-widest">NLZ Modul</h3>
+                                <div className="text-2xl font-mono tracking-tighter">ONLINE</div>
+                                <p className="text-[10px] mt-2 text-white/60 font-mono">Funino Courts: 4 Active</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="w-full h-[600px] rounded-2xl overflow-hidden border border-white/10">
+                            <a-scene embedded>
+                                <a-sky color="#00081a"></a-sky>
+                                <a-plane position="0 0 -4" rotation="-90 0 0" width="10" height="10" color="#001240"></a-plane>
+                                <a-text value="TONI 2.0 VR CENTER" align="center" position="0 2 -3" width="6"></a-text>
+                                <a-box position="0 0.5 -5" color="#cc0000"></a-box>
+                            </a-scene>
+                        </div>
+                    )}
+                </div>
+            );
